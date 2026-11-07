@@ -164,3 +164,128 @@ they are diagnostics on the surface).
 2027-06-30 (6 C, 9 P), 2028-01-21 (2 P), 2028-06-16 (2 P). All of them last traded between 2026-07-29
 and 2026-09-24, and their mids sit 14–177 points from the nearer neighbour. No strict violation remains,
 so the surface goes from 7650 to 7625 quotes.
+
+## D-011 — IV solver: vectorised safeguarded Newton, non-vectorised Brent fallback
+**Context:** eq. (15) of `derivations/bsm.md` sends non-converged elements to `scipy.optimize.brentq`,
+which is scalar.
+**Decision:** `iv.implied_vol` runs the safeguarded Newton (eq. 14) vectorised on a shrinking active
+set. Whatever remains after `max_iter = 100` goes through a Python loop of `brentq(xtol=1e-15,
+rtol=4*eps)`, one call per element, on that element's final Newton bracket. The bracket encloses the
+root by construction (b(lo) < beta <= b(hi)). An element has converged when one of three tests holds:
+the residual |b - beta| <= 4 eps beta; the Newton correction |ds| <= 1e-13 sqrt(T); or the
+safeguarded step |s_new - s| <= 1e-13 sqrt(T) (eq. 15).
+The Newton-correction test was added during implementation. In the deep-OTM tail (|z| >= 2.7), the
+rounding noise in b exceeds 4 eps beta, so the residual test never fires, and the correction falls
+below one ulp of s. The iterate then landed exactly on a bracket end, failed the strict (lo, h) test
+and was bisected away. That cost 39 elements 16–46 evaluations. With the test, the iteration
+stops (rtsafe semantics, Press et al. §9.4).
+**Alternatives:** a vectorised Brent or bisection loop (more code, for a path that is never taken on
+the gate domain); Jäckel (2015) "Let's be rational" (two Householder steps to machine precision,
+much more code).
+**Consequences:** on the gate grid (2 × 147,600 elements, `scripts/phase1_gates.py`) Newton takes at
+most 12 evaluations (mean 6.95) and the Brent fallback runs 0 times. The fallback path is tested
+with `max_iter=1`. It sends 4200 of 4620 elements to brentq at 0.14 ms per element, and the
+round-trip error is 3.0e-13.
+
+## D-012 — sigma = 0 limits of the Black-76 kernels
+**Context:** pitfall 5 of `derivations/bsm.md`: at s = sigma sqrt(T) = 0, d_{1,2} = x/s is 0/0 at F = K.
+**Decision:** sigma = 0 is accepted; T <= 0 and sigma < 0 raise. At s = 0, d_{1,2} are set to their
+limits: +inf for x > 0, -inf for x < 0, 0 for x = 0. Eqs. (1), (5), (7) and (8) are then evaluated
+unchanged and return the continuous limits. Gamma (6) is set to 0 for x != 0 and +inf for x = 0.
+One limit differs from the note: at x = 0, vega is the right-derivative DF F sqrt(T)/sqrt(2 pi),
+because C ≈ DF F s/sqrt(2 pi) (Brenner–Subrahmanyam). The note lists 0. Away from x = 0, vega is 0,
+as in the note. Kernels also accept DF > 1 (negative rates), while the note states DF in (0, 1].
+**Consequences:** there is no special-case branch in the price, delta, vega or theta code.
+`test_sigma_zero_limits` checks the exact limit values.
+
+## D-013 — Implied vol: invalid prices give NaN + warning + status, invalid market inputs raise
+**Context:** CLAUDE.md forbids silent clipping and silent NaN. Real chains contain stale or crossed
+quotes.
+**Decision:** if F, K, T or DF is <= 0 or non-finite, or cp is not +-1, the call raises ValueError
+(a programming error). Price-level failures give NaN. Each call emits one RuntimeWarning that
+counts the failures per type, and `full_output=True` returns a per-element status:
+1 = v <= intrinsic, or time value <= 10 eps v (pitfall 7; for OTM quotes this is just v > 0);
+2 = v >= F (call) or K (put), eq. (4); 3 = vol above sigma_max = 10 (b(sigma_max sqrt T) < beta,
+eq. 14); 4 = non-finite price; 5 = OTM tail not resolved in float64 (added in fix round 1,
+validator finding F1, below). If the start s_c = sqrt(2|x|) lies above the cap, Newton starts from
+the bracket midpoint and the safeguard handles convergence.
+**Update (fix round 1, validator F1):** `scipy.special.ndtr` returns subnormals below d ≈ −37.4 and
+exactly 0 from d ≈ −38. Phi itself is representable down to d ≈ −38.5. When Phi(d2) is lost but
+Phi(d1) is not (d2 < −37.5 < d1), b(s) = e^{−a/2} Phi(d1) − e^{a/2} Phi(d2) misses its second term
+and comes out too large, by up to ~17x. Newton and Brent then converged on the wrong function, and
+the solver returned a wrong sigma, or sigma = 0 when beta itself underflowed, with status 0 and no
+warning. Example: V = 2.162e-305, F = 100, K = 100 e^{38.5 sqrt 5}, T = 5, call, true sigma = 1
+gave sigma_hat = 0. The fix is a post-check at the root. A root s is accepted only if s > 0 and
+ndtr(d2(s)) >= PHI_MIN = 1e3·`finfo.tiny` ≈ 2.2e-305 (d2 ≳ −37.3, i.e. Phi(d2) is still a normal
+float). Otherwise the result is NaN with status 5 and the warning. The check is sufficient on the
+convex branch, where every root of the wrong function lies at a smaller s, hence at a smaller d2,
+so it is also flagged. A threshold on beta alone would not be sufficient: beta ≈ b' s/(|d1||d2|)
+with b' = e^{a/2} phi(d2), so at large s and |x| beta can be ~1e-280 while Phi(d2) has already
+underflowed. Rule "never sigma = 0" holds: s <= 0 always gives status 5. Prices exactly 0 (both
+tails flushed) are status 1.
+`bsm.price` is not changed. Its contract is absolute accuracy (~eps DF max(F, K)); relative
+accuracy is lost once Phi(cp d2) underflows, i.e. for OTM prices of order 1e-280 and below
+(absolute error ≲ 1e-279). Evaluating the wings in log space (`log_ndtr`) would restore relative
+accuracy there, but it costs a second code path, no quoted price is ever in that range, and
+exp(L) at |L| ~ 600 would not improve the gate-domain digits.
+Measured: the validator's `test_iv_deep_otm_never_silent_wrong` (33 cases, |z| from 12 to 40, both
+cp) passes, and so does `tests/test_iv.py::test_deep_otm_unresolved_tail_is_nan`. On the gate grid
+no element is affected (status 0 everywhere, round trip unchanged).
+**Alternatives:** raise on any bad price (then one stale quote fails a whole chain); clip to the
+bounds (forbidden); log-space b and Newton on ln b (more code, and only for prices nobody quotes).
+
+## D-014 — Gamma FD step 4.5e-4 F sigma sqrt T (not the 1e-4 of the §2.4 table); identity tolerance
+**Context:** at the §2.4 table step 1e-4 F sigma sqrt T, OTM gamma by D_2 gives a worst relative error
+of 1.773e-5 against the gate of 1e-5. 78 of 147,600 points exceed it, all at sigma sqrt T ≈ 0.007–0.008
+(sigma = 0.05, T ≈ 0.02). Diagnosis:
+(i) the step is not the problem: with h = k·ulp(F), exact on both sides, the error is still 1.773e-5;
+(ii) analytic gamma is right: larger steps converge to it, and vega = sigma T F^2 Gamma (rel < 1e-12)
+and ∫ F^2 Gamma / K^2 dK = DF (< 1e-10) both hold;
+(iii) the price noise is larger than the table assumes. At the worst point (sigma = 0.05, T = 0.02,
+K = 100.852, OTM call V = 0.0398), sweeping F over ±50 ulps shows absolute noise of 5.2e-15 in
+eq. (1). That is 600 eps V, while the table assumes eps V. It matches eps F Phi(d1) = 2.6e-15: the
+cancellation between F Phi(d1) and K Phi(d2), which pitfall 6 quantifies. The rounding term
+4 eps |f| / h^2 of eq. (17) is therefore ~600x larger, and the optimal step grows by about
+600^(1/4) ≈ 5.
+**Decision:** take the gamma step from the minimax of eq. (17) over the grid. Model the worst-case
+error as A c^2 + B / c^2. A = 4.47 comes from c = 2e-3 (truncation corner sigma = 1, T = 5, z = 3)
+and B = 1.77e-13 from c = 1e-4 (rounding corner). Then c* = (B/A)^(1/4) = 4.46e-4, and the
+predicted worst case is 2 sqrt(AB) = 1.8e-6. Test step c = 4.5e-4, measured worst case 9.96e-7.
+Tolerance (1e-5), OTM evaluation and grid are unchanged. Delta, vega and theta keep the table steps
+(measured 2.0e-8, 3.0e-7, 1.7e-8). §5 identities: homogeneity V(lam F, lam K) = lam V, the swap
+C(F, K) = P(K, F) and put-call symmetry use the note's per-element tolerance (abs <= 1e-12 at
+F = 100, or rel <= 1e-12). Under pure rel 1e-12 they fail at 1.1–1.3e-12 on small OTM prices at
+s ≈ 0.007: scaling F and K moves x = ln(F/K) by one ulp, and x/s amplifies that. All other
+identities pass at pure rel 1e-12 and are tested that way.
+**Consequences:** the §2.4 table entry for gamma (step 1e-4, predicted error ~1e-8) needs a
+correction by the note's author, because it ignores pitfall 6. `scripts/phase1_gates.py` prints the
+1e-4 value as a diagnostic.
+
+## D-015 — Heston ξ→0 gate: exact at ρ = 0; at ρ ≠ 0 compare against Black + first-order ρξ term
+**Context:** ROADMAP Phase 2 gate "ξ→1e-4 limit equals BSM with σ² = (1/T)∫v(t)dt, < 1e-5" does not state ρ.
+For ρ ≠ 0 the Heston–Black gap is first order in ξ (correlation term ρξ·J·∂²V_B/∂x∂Σ, eq. 16 in
+`derivations/heston.md`; Benhamou–Gobet–Miri 2010 a₁). Independent orchestrator check (Lewis integral vs
+Black, κ = 1.5, θ = 0.04, T = 1, K ∈ {60,…,150}): max gap 3.27e-4 at ρ = −0.7, ξ = 1e-4 (linear in ξ:
+3.27e-3 / 3.27e-4 / 3.25e-5 for ξ = 1e-3 / 1e-4 / 1e-5), but 2.6e-8 at ρ = 0, ξ = 1e-4. So the gate as
+literally written is unattainable for ρ ≠ 0 — a specification error, not an implementation tolerance.
+**Decision:** the gate is tested (i) at ρ = 0 against plain Black with σ_eff, tolerance 1e-5 (unchanged), and
+(ii) additionally at ρ = −0.7 against Black **plus** the eq. 16 correction, tolerance 1e-5 (stricter than
+skipping the case). No tolerance is loosened.
+**Alternatives:** drive ξ to 1e-7 so the linear term drops below 1e-5 — rejected: the CF's κθ/ξ² terms then
+cancel catastrophically (pitfall in heston.md), so it would test round-off, not the model.
+**Consequences:** the owner should be aware the ROADMAP wording is ambiguous; the interview answer is
+"the ξ→0 limit is Black with integrated variance only for ρ = 0; with correlation the leading correction is
+the ρξ skew term, linear in ξ".
+
+## D-016 — Strike domain of the put-call parity gate
+**Context:** validator finding F2. ROADMAP Phase 1 states "put-call parity < 1e-12" without a strike
+range. On the full IV-gate domain |ln(K/F)| <= 3 sigma sqrt T, K reaches 8.2e4 at F = 100, where
+ulp(8.2e4) = 1.5e-11, so an absolute 1e-12 cannot be represented in float64 (note pitfall 4: the
+parity floor is ~c eps DF (F + K)).
+**Decision:** the gate is tested at < 1e-12 absolute for K/F in [0.25, 4] (F = 100), the domain the
+note recommends (§2.5, pitfall 4). Elsewhere the requirement is the float64 floor, <= 4 ulp of
+DF max(F, K). Calls and puts are always evaluated independently, never P = C − DF(F − K).
+**Consequences:** measured (`scripts/phase1_gates.py`; validator `docs/validation/phase1.md`):
+1.137e-13 on K/F in [0.25, 4] (40 sigma × 30 T × 61 K × 3 DF, and 200k random points). On the
+full IV-gate domain the maximum is 1.455e-11 = 2.25 ulp of DF max(F, K). 124 of 147,600 points are
+above 1e-12, all at K >= 8.3e3. Amending the ROADMAP wording is left to the owner.

@@ -1,0 +1,260 @@
+{
+ "description": "Black-76 oracle values (price, forward Greeks, calendar theta at fixed r).",
+ "conventions": "V = DF E^T[(cp(F_T-K))^+]; delta/gamma wrt F at fixed DF; vega per unit vol; theta = dV/dt per year with F, K, sigma and r = -ln(DF)/T fixed (docs/derivations/bsm.md \u00a71, eq. 8). Inputs are exact IEEE doubles (repr).",
+ "source": "Method A: closed forms eqs. (1),(5)-(8) evaluated in Python stdlib decimal at 60 significant digits with the validator's own normal-tail series (independent of qpricer and of scipy). Method B (independent): price by scipy.integrate.quad of the payoff against the normal density (epsrel 1e-14); Greeks by central finite differences of the 60-digit price (steps 1e-12, gamma 1e-9, relative). Stored values = Method A; 'agreement' gives the A-vs-B relative differences. Hull 5th ed. pp. 287-288 publishes 1.1166 for the two hull5 cases.",
+ "generator": "tests/validation/test_phase1_independent.py --write-golden (validator)",
+ "cases": [
+  {
+   "id": "hull5_futures_call",
+   "F": 20.0,
+   "K": 20.0,
+   "T": 0.3333333333333333,
+   "DF": 0.9704455335485082,
+   "sigma": 0.25,
+   "cp": 1,
+   "price": "1.1166414565589434215528718e+0",
+   "delta": "5.1313880318822766285429759e-1",
+   "gamma": "1.3376450266134561229803998e-1",
+   "vega": "4.4588167553781868290872814e+0",
+   "theta": "-1.5715585521765151632231856e+0",
+   "agreement": {
+    "price_quad_rel": 2.220446049250313e-16,
+    "delta_fd_rel": 2.72e-26,
+    "gamma_fd_rel": 7.68229167e-20,
+    "vega_fd_rel": 9e-28,
+    "theta_fd_rel": 1.42e-25
+   }
+  },
+  {
+   "id": "hull5_futures_put",
+   "F": 20.0,
+   "K": 20.0,
+   "T": 0.3333333333333333,
+   "DF": 0.9704455335485082,
+   "sigma": 0.25,
+   "cp": -1,
+   "price": "1.1166414565589434215528718e+0",
+   "delta": "-4.5730673036028049177665400e-1",
+   "gamma": "1.3376450266134561229803998e-1",
+   "vega": "4.4588167553781868290872814e+0",
+   "theta": "-1.5715585521765151632231856e+0",
+   "agreement": {
+    "price_quad_rel": 4.440892098500626e-16,
+    "delta_fd_rel": 3e-26,
+    "gamma_fd_rel": 7.68229167e-20,
+    "vega_fd_rel": 9e-28,
+    "theta_fd_rel": 1.42e-25
+   }
+  },
+  {
+   "id": "atm_df1",
+   "F": 100.0,
+   "K": 100.0,
+   "T": 1.0,
+   "DF": 1.0,
+   "sigma": 0.2,
+   "cp": 1,
+   "price": "7.9655674554057967337867815e+0",
+   "delta": "5.3982783727702898366893391e-1",
+   "gamma": "1.9847627373850587162744196e-2",
+   "vega": "3.9695254747701176529017681e+1",
+   "theta": "-3.9695254747701178732546971e+0",
+   "agreement": {
+    "price_quad_rel": 0.0,
+    "delta_fd_rel": 3.68e-26,
+    "gamma_fd_rel": 7.08333333e-20,
+    "vega_fd_rel": 1.7e-27,
+    "theta_fd_rel": 1.26e-25
+   }
+  },
+  {
+   "id": "corner_lowvol_shortT_otm_call",
+   "F": 100.0,
+   "K": 102.14398028992784,
+   "T": 0.02,
+   "DF": 0.8,
+   "sigma": 0.05,
+   "cp": 1,
+   "price": "2.1848307422678997475193436e-4",
+   "delta": "1.0925202726266241376092898e-3",
+   "gamma": "5.0674976543408391155095870e-3",
+   "vega": "5.0674976543408395023007014e-2",
+   "theta": "-6.0906066225009896249130980e-2",
+   "agreement": {
+    "price_quad_rel": 3.9968028886505635e-15,
+    "delta_fd_rel": 1.634e-24,
+    "gamma_fd_rel": 6.59611224e-19,
+    "vega_fd_rel": 9e-24,
+    "theta_fd_rel": 8.61e-25
+   }
+  },
+  {
+   "id": "corner_lowvol_shortT_itm_call",
+   "F": 100.0,
+   "K": 97.90102139759748,
+   "T": 0.02,
+   "DF": 0.8,
+   "sigma": 0.05,
+   "cp": 1,
+   "price": "1.6793967790832689803809651e+0",
+   "delta": "7.9893255046573524626794034e-1",
+   "gamma": "4.9611319628989986407694955e-3",
+   "vega": "4.9611319628989990194419472e-2",
+   "theta": "1.8675313917978058296834727e+1",
+   "agreement": {
+    "price_quad_rel": 4.440892098500626e-16,
+    "delta_fd_rel": 2.2e-27,
+    "gamma_fd_rel": 6.73753359e-19,
+    "vega_fd_rel": 9e-24,
+    "theta_fd_rel": 6e-27
+   }
+  },
+  {
+   "id": "corner_lowvol_shortT_otm_put",
+   "F": 100.0,
+   "K": 97.90102139759748,
+   "T": 0.02,
+   "DF": 0.8,
+   "sigma": 0.05,
+   "cp": -1,
+   "price": "2.1389716124889962587362201e-4",
+   "delta": "-1.0674495342647981409806414e-3",
+   "gamma": "4.9611319628989986407694955e-3",
+   "vega": "4.9611319628989990194419472e-2",
+   "theta": "-5.9627660927382108930178414e-2",
+   "agreement": {
+    "price_quad_rel": 4.218847493575595e-15,
+    "delta_fd_rel": 1.649e-24,
+    "gamma_fd_rel": 6.73753359e-19,
+    "vega_fd_rel": 9e-24,
+    "theta_fd_rel": 8.61e-25
+   }
+  },
+  {
+   "id": "corner_highvol_longT_otm_call",
+   "F": 100.0,
+   "K": 81909.8161923489,
+   "T": 5.0,
+   "DF": 0.8,
+   "sigma": 1.0,
+   "cp": 1,
+   "price": "1.1416554780161567449213957e+0",
+   "delta": "2.3936252248121949090258207e-2",
+   "gamma": "2.4289792600278551832743154e-4",
+   "vega": "1.2144896300139275916371577e+1",
+   "theta": "-1.1635390184655582162418655e+0",
+   "agreement": {
+    "price_quad_rel": 4.440892098500626e-16,
+    "delta_fd_rel": 1.339e-25,
+    "gamma_fd_rel": 6.9013108e-21,
+    "vega_fd_rel": 5.302e-24,
+    "theta_fd_rel": 1.35e-25
+   }
+  },
+  {
+   "id": "corner_highvol_longT_otm_put",
+   "F": 100.0,
+   "K": 0.12208548944264495,
+   "T": 5.0,
+   "DF": 0.8,
+   "sigma": 1.0,
+   "cp": -1,
+   "price": "1.3937956780847927831127783e-3",
+   "delta": "-1.5284733930497858939518493e-5",
+   "gamma": "2.9654312180653425931006621e-7",
+   "vega": "1.4827156090326712965503311e-2",
+   "theta": "-1.4205123055498237639601519e-3",
+   "agreement": {
+    "price_quad_rel": 6.661338147750939e-16,
+    "delta_fd_rel": 4.594e-24,
+    "gamma_fd_rel": 4.465234644e-18,
+    "vega_fd_rel": 5.302e-24,
+    "theta_fd_rel": 1.35e-25
+   }
+  },
+  {
+   "id": "itm_put_positive_theta",
+   "F": 100.0,
+   "K": 130.0,
+   "T": 1.0,
+   "DF": 0.9,
+   "sigma": 0.15,
+   "cp": -1,
+   "price": "2.7248980750878818982087393e+1",
+   "delta": "-8.5764963990047187885963065e-1",
+   "gamma": "5.8950253429496631492459895e-3",
+   "vega": "8.8425380144244943966293410e+0",
+   "theta": "2.2077763119809375626336881e+0",
+   "agreement": {
+    "price_quad_rel": 2.220446049250313e-16,
+    "delta_fd_rel": 2.62e-26,
+    "gamma_fd_rel": 9.1187633e-20,
+    "vega_fd_rel": 2.4e-26,
+    "theta_fd_rel": 9.2e-26
+   }
+  },
+  {
+   "id": "negative_rate",
+   "F": 100.0,
+   "K": 95.0,
+   "T": 2.0,
+   "DF": 1.02,
+   "sigma": 0.3,
+   "cp": -1,
+   "price": "1.4277301466435916819293142e+1",
+   "delta": "-3.7694636216892783405075925e-1",
+   "gamma": "9.0738206420997744419411042e-3",
+   "vega": "5.4442923852598644636853706e+1",
+   "theta": "-4.2245833288124135866213310e+0",
+   "agreement": {
+    "price_quad_rel": 0.0,
+    "delta_fd_rel": 1.29e-25,
+    "gamma_fd_rel": 8.767512e-21,
+    "vega_fd_rel": 1.47e-26,
+    "theta_fd_rel": 1.16e-25
+   }
+  },
+  {
+   "id": "deep_otm_call_z-8",
+   "F": 100.0,
+   "K": 1102.31763806416,
+   "T": 1.0,
+   "DF": 0.9,
+   "sigma": 0.3,
+   "cp": 1,
+   "price": "6.6947065673056799655877297e-15",
+   "delta": "1.8721677169254460649145051e-15",
+   "gamma": "4.9759437811869369707691958e-16",
+   "vega": "1.4927831343560810359866852e-12",
+   "theta": "-2.2321211241730298461398736e-13",
+   "agreement": {
+    "price_quad_rel": 1.4432899320127035e-15,
+    "delta_fd_rel": 1.0033e-23,
+    "gamma_fd_rel": 4.478125e-18,
+    "vega_fd_rel": 6.50183e-22,
+    "theta_fd_rel": 1.53504e-22
+   }
+  },
+  {
+   "id": "deep_otm_put_z8",
+   "F": 100.0,
+   "K": 9.071795328941251,
+   "T": 1.0,
+   "DF": 0.9,
+   "sigma": 0.3,
+   "cp": -1,
+   "price": "6.0733007765915946275262834e-16",
+   "delta": "-1.6376592271739697923638465e-16",
+   "gamma": "4.5140743551245893726135536e-17",
+   "vega": "1.3542223065373767616677733e-13",
+   "theta": "-2.0249345987903973954182549e-14",
+   "agreement": {
+    "price_quad_rel": 4.440892098500626e-15,
+    "delta_fd_rel": 1.1646e-23,
+    "gamma_fd_rel": 6.078125e-18,
+    "vega_fd_rel": 6.50183e-22,
+    "theta_fd_rel": 1.53504e-22
+   }
+  }
+ ]
+}
