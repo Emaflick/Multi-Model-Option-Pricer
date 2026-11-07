@@ -28,3 +28,27 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   (`data.build_surface`), where the error is <= 1e-14.
   **Next step (if ITM quotes are ever inverted):** return an attainable-error estimate
   `info["sigma_err"] = eps·max(v, F, K)·DF/vega`, or add a status for an estimated error > 1e-8.
+
+- **Phase 2 · AMST (2007) Table 1/2 published values (heston.md §5, A1/A2) not reproducible at
+  stated precision (oracle issue, not a ROADMAP gate; not hard-tested, D-020)**
+  **Observed vs expected:** Lewis and COS, which agree to ≤ 1e-7 there, against the published ATM calls
+  (K = S0 = 100, r = 2.5%, q = 0). A1 (FO set): +0.0043, +0.0073, −0.0007, +0.0052, +0.0019 at T = 1, 2,
+  3, 5, 10, against a stated precision of 0.005. T = 2 and T = 5 miss. A2 (AT2 set): +6.9e-5 at T = 1
+  (precision 5e-5, miss), +6.7e-5 at T = 2 and −2.5e-3 at T = 3 (precision 0.005, pass).
+  **Diagnosis:** (i) It is not an input convention: no single r fits all A1 values (T = 2 needs
+  r ≤ 0.02498, T = 10 needs r ≥ 0.02499). (ii) The FO parameters are printed to 4 digits. Half-unit
+  rounding of the five parameters moves the A1 prices by ±0.0057, 0.0073, 0.0083, 0.0098 and 0.0117
+  (T = 1, 2, 3, 5, 10, first-order bound). That exceeds the 2-decimal precision, and every A1 deviation
+  lies inside it, so AMST most likely priced with unrounded calibrated parameters. (iii) A2 uses round
+  parameters; its 1.9e-5 excess at T = 1 is consistent with AMST's quadrature accuracy. The same CF
+  reproduces FO1/FO2 (≤ 1.6e-8), QuantLib's Lewis values (3e-14), BK-1/BK-2 (≤ 4.2e-5 at 4 decimals)
+  and Choi–Kwok's A-I (3e-9). (Numbers: `scripts/phase2_gates.py`.)
+  **Next step:** the note's author should reclassify A1/A2 as qualitative (the "trap" itself is tested
+  by the form-(4) negative control in `tests/test_heston.py`) or find AMST's unrounded parameters.
+
+- **Phase 2 · note corrections requested (heston.md §2.2 eq. 8 and §5; derivation-note owner)**
+  L = 12 COS fails the 1e-6 gate on sets FO (3.95e-5) and GS (2.58e-6). The error is the left-tail
+  reflection term of §3.3, not the series. The code now uses a self-checking (N, L) by default
+  (D-017, fix round 1). The §5 diagnostic "L = 16,
+  N = 512 vs L = 12, N = 256 < 1e-8" does not hold for FO and GS. The eq. (13) estimate is about 20x
+  pessimistic.

@@ -1,0 +1,17 @@
+IV cp=+1: 147600 elements, Newton evaluations max 12, mean 6.95, Brent fallback 0
+IV cp=-1: 147600 elements, Newton evaluations max 12, mean 6.95, Brent fallback 0
+diagnostic (not a gate): gamma OTM at the §2.4 step 1e-4 F s: 1.773e-05
+
+gate                                               measured      tol  pass
+put-call parity, K/F in [0.25, 4]                 1.137e-13    1e-12  True
+IV round trip cp=+1 (OTM inputs)                  1.066e-14    1e-10  True
+IV round trip cp=+1 (ITM inputs)                  8.230e-13    1e-10  True
+delta cp=+1, h = 1e-5 F s                         2.048e-08    1e-05  True
+vega cp=+1, h = 1e-5 sigma                        2.733e-07    1e-05  True
+IV round trip cp=-1 (OTM inputs)                  1.047e-14    1e-10  True
+IV round trip cp=-1 (ITM inputs)                  7.672e-13    1e-10  True
+delta cp=-1, h = 1e-5 F s                         1.824e-08    1e-05  True
+vega cp=-1, h = 1e-5 sigma                        2.964e-07    1e-05  True
+gamma OTM, h = 0.00045 F s (D-014)                9.958e-07    1e-05  True
+theta OTM, joint (T, DF) bump (18)                1.692e-08    1e-05  True
+.venv/bin/python scripts/phase1_gates.py  0,55s user 0,11s system 10% cpu 6,277 total

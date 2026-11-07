@@ -1,0 +1,41 @@
+Gate 1: |COS - Lewis| on K 60..150 x T 0.1..3 x DF {1, .95} x {C, P} (tol 1e-6)
+  FO   nu_F=0.38  default (self-checking): 1.83e-10   [fixed N=256: L=18 1.01e-07, L=12 3.95e-05]
+  GS   nu_F=0.62  default (self-checking): 1.40e-12   [fixed N=256: L=18 2.48e-09, L=12 2.58e-06]
+  LW   nu_F=2.00  default (self-checking): 1.14e-13   [fixed N=256: L=18 1.10e-13, L=12 8.35e-09]
+  AT2  nu_F=1.33  default (self-checking): 5.12e-12   [fixed N=256: L=18 9.82e-09, L=12 1.36e-07]
+COS robustness (validator F1): 300 random SPX-plausible sets x 6 T, K 60..150, puts
+  fixed N=256, L=18: > 1e-6 in 413/1800 (22.9%), warned 480, silent 5, max unwarned 2.61e-06, max 9.95e-02
+  default          : > 1e-6 in 0/1800 (0.0%), warned 0, silent 0, max unwarned 3.05e-09, max 3.05e-09
+  time per call, 25 strikes, GS T=1: fixed(256,18) 0.12 ms, default 0.30 ms, Lewis 4.81 ms
+  time per call, 25 strikes, FO T=1: fixed(256,18) 0.12 ms, default 0.62 ms, Lewis 4.58 ms
+  time per call, 25 strikes, scan-worst T=3: fixed(256,18) 0.12 ms, default 7.97 ms, Lewis 9.54 ms
+Gate 2: xi = 1e-4 limit (D-015), COS and Lewis, tol 1e-5
+  theta=0.04, v0=0.04: rho=0 vs Black(sigma_eff) 4.36e-08; rho=-0.7 vs Black + eq. 16 term 5.58e-08 (vs plain Black 6.05e-04)
+  theta=0.04, v0=0.09: rho=0 vs Black(sigma_eff) 4.18e-08; rho=-0.7 vs Black + eq. 16 term 5.33e-08 (vs plain Black 6.58e-04)
+  theta=0.09, v0=0.01: rho=0 vs Black(sigma_eff) 3.02e-08; rho=-0.7 vs Black + eq. 16 term 3.66e-08 (vs plain Black 6.20e-04)
+Published oracles
+  FO1 5.785155450: Lewis -1.6e-08, COS default -1.6e-08, COS fixed (256, 18) -1.1e-07
+  FO2 22.318945791: Lewis +1.5e-10, COS +1.5e-10
+  A-I K=100 13.08467014 (Choi-Kwok, single source): Lewis -3.0e-09
+  AMST A1 T=1    7.27: Lewis dev +0.0043 (stated precision 0.005; OPEN_ISSUES)
+  AMST A1 T=2   11.73: Lewis dev +0.0073 (stated precision 0.005; OPEN_ISSUES)
+  AMST A1 T=3   15.48: Lewis dev -0.0007 (stated precision 0.005; OPEN_ISSUES)
+  AMST A1 T=5   21.75: Lewis dev +0.0052 (stated precision 0.005; OPEN_ISSUES)
+  AMST A1 T=10  33.84: Lewis dev +0.0019 (stated precision 0.005; OPEN_ISSUES)
+  AMST A2 T=1 8.8948: Lewis dev +6.9e-05 (stated precision 5e-05)
+  AMST A2 T=2 13.2: Lewis dev +6.7e-05 (stated precision 0.005)
+  AMST A2 T=3 16.79: Lewis dev -2.5e-03 (stated precision 0.005)
+Gate 3: QE / QE-M MC vs COS, 2e5 paths, dt = 1/32, puts K = 70/100/140, (MC-COS)/SE
+  FO   nu_F=0.38 qe    seed=20261107: z = [+0.70, -0.09, -0.71]  SE = [0.0072, 0.0238, 0.0347]  0.2s
+  FO   nu_F=0.38 qe-m  seed=20261107: z = [+0.69, -0.09, -0.69]  SE = [0.0072, 0.0238, 0.0347]  0.2s
+  FO   nu_F=0.38 euler seed=20261107: z = [+0.53, +1.38, -0.88]  SE = [0.0072, 0.0238, 0.0349]  0.1s  (diagnostic, not gated)
+  GS   nu_F=0.62 qe    seed=20261108: z = [+0.19, +0.27, +0.08]  SE = [0.0078, 0.0261, 0.0388]  0.2s
+  GS   nu_F=0.62 qe-m  seed=20261108: z = [+0.18, +0.26, +0.08]  SE = [0.0078, 0.0261, 0.0388]  0.2s
+  GS   nu_F=0.62 euler seed=20261108: z = [+0.03, +0.85, +0.03]  SE = [0.0077, 0.0261, 0.0389]  0.1s  (diagnostic, not gated)
+  BK2  nu_F=0.36 qe    seed=20261109: z = [+0.10, +0.37, +0.48]  SE = [0.0247, 0.0438, 0.0692]  0.9s
+  BK2  nu_F=0.36 qe-m  seed=20261109: z = [+0.09, +0.36, +0.47]  SE = [0.0247, 0.0438, 0.0692]  1.1s
+  BK2  nu_F=0.36 euler seed=20261109: z = [+0.73, +0.75, +1.19]  SE = [0.0248, 0.0438, 0.0692]  0.3s  (diagnostic, not gated)
+  AI   nu_F=0.04 qe    seed=20261110: z = [+0.23, +0.33, +0.62]  SE = [0.0358, 0.0575, 0.0759]  1.6s
+  AI   nu_F=0.04 qe-m  seed=20261110: z = [+0.21, +0.31, +0.61]  SE = [0.0358, 0.0575, 0.0759]  2.1s
+  AI   nu_F=0.04 euler seed=20261110: z = [+4.39, +5.08, +1.28]  SE = [0.0362, 0.0581, 0.0770]  0.6s  (diagnostic, not gated)
+.venv/bin/python -W ignore scripts/phase2_gates.py  32,58s user 0,20s system 86% cpu 37,855 total

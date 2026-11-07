@@ -5,3 +5,4 @@ __pycache__/
 .venv/
 data/raw/*.parquet
 !data/raw/.gitkeep
+.DS_Store

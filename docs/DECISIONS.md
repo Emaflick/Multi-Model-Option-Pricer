@@ -289,3 +289,115 @@ DF max(F, K). Calls and puts are always evaluated independently, never P = C −
 1.137e-13 on K/F in [0.25, 4] (40 sigma × 30 T × 61 K × 3 DF, and 200k random points). On the
 full IV-gate domain the maximum is 1.455e-11 = 2.25 ulp of DF max(F, K). 124 of 147,600 points are
 above 1e-12, all at K >= 8.3e3. Amending the ROADMAP wording is left to the owner.
+
+## D-017 — COS range and size: self-checking (N, L) by default (updated in fix round 1, validator F1)
+**Context:** with the eq. (8) range at L = 12 the COS–Lewis gap does not fall with N (256 to 4096
+give the same error) but falls by about 8x for every 2 added to L. That is pitfall 11 (range too
+narrow), not a coding error. At L = 12, N = 256 the gate (< 1e-6) fails: max |COS − Lewis| = 3.95e-5
+(FO) and 2.58e-6 (GS, the SPX-like set). It passes on LW (8.4e-9) and AT2 (1.4e-7)
+(`scripts/phase2_gates.py`). At FO, T = 1, ATM put the error is exactly the even-reflection tail term of
+note §3.3, ∫_{X<a} F(e^{2a−y} − e^y) f(y) dy. It was computed numerically from a wide-range COS density
+as 3.948e-5, against a measured −3.947e-5. Q(X < a) is only 7.7e-6 at "12 sd", but the reflection weight
+grows like e^{−y} into the heavy left tail (ρ < 0). Lewis is independent of [a, b] and reproduces FO1
+to 1.6e-8 and the QuantLib/Lewis values to 3e-14.
+The first decision was a fixed L = 18, N = 256. It passes the four gate sets (max 1.01e-7 FO,
+2.5e-9 GS, 9.8e-9 AT2, 1.1e-13 LW). The validator (F1, `docs/validation/phase2.md`) then showed it is
+not robust: on 300 random SPX-plausible sets × 6 maturities (seed 5; κ ∈ [0.3, 8] log, θ ∈ [0.01, 0.12],
+ξ ∈ [0.1, 1.2], ρ ∈ [−0.95, −0.2], v0 ∈ [0.005, 0.12]; K 60..150; puts):
+- 413/1800 cells (22.9%) exceed 1e-6, up to 9.95e-2;
+- 480 cells are warned;
+- 5 cells fail silently, up to 2.61e-6. The eq. (13) warning models series error only, never range error.
+Phase 5 calibrates with COS inside least_squares, so a fixed (N, L) is unacceptable there.
+**Decision:** `cos_price` with N = L = None (the default) is self-checking:
+- Start at (N, L) = (256, 18).
+- While max_K |P(N, L) − P(2N, L + 6)| > tol·F (tol = 1e-9, i.e. 1e-7 at F = 100, 10x below the gate),
+  set (N, L) ← (2N, L + 6). Return the finer price.
+- Adding 6 to L shrinks the range error by about 20–500x on the sets measured. Doubling N squares the
+  series term. So the difference is a reliable estimate of the coarser error, and the returned finer
+  price is better than tol·F.
+- If N reaches N_MAX = 2^14 without agreement it warns ("not converged"). It never returns a silent miss.
+- An explicit N and/or L gives a single evaluation with only the eq. (13) series warning. Use it in tests
+  and studies only.
+Measured (`scripts/phase2_gates.py`):
+- Random scan: 0/1800 cells > 1e-6, 0 warned, 0 silent, max error 3.05e-9. Final N: 512 in 1248 cells,
+  1024 in 274, 2048 in 189, 4096 in 69, 8192 in 17, 16384 in 3. Median cost 768 CF evaluations, p90 3840.
+- Gate grid: max |COS − Lewis| 1.8e-10 (FO), 1.4e-12 (GS), 5.1e-12 (AT2), 1.1e-13 (LW).
+- FO1: −1.6e-8, now tested with the default.
+- Time per call, 25 strikes:
+
+  | Set | Fixed (256, 18) | Default | Lewis |
+  |---|---|---|---|
+  | GS, T = 1 | 0.12 ms | 0.30 ms | 4.9 ms |
+  | FO, T = 1 | 0.12 ms | 0.62 ms | 4.6 ms |
+  | Worst scan cell, T = 3 | 0.12 ms | 8.0 ms | 9.6 ms |
+
+  The calibration note's fixed N = 1024 would cost about 0.45 ms per call and would still be wrong
+  in range-limited cells.
+**Alternatives:**
+- L = 12 plus √c4 (F&O eq. 49): the c4 closed form is not cross-checked, and it gives no error estimate,
+  so it cannot guarantee "accurate or warned".
+- A Chernoff-type bound on the left-tail reflection term from E[F_T^{−ω}]: rigorous, but it needs the
+  moment-explosion map (eq. 17) per call.
+- Lewis inside the optimiser: 15–40x slower.
+- Fixed larger (N, L): still wrong somewhere, and slower on easy sets.
+**Consequences:** COS cost now depends on the parameters, at 2.5–5x the fixed cost on typical sets.
+`cos_series_error` remains as the eq. (13) diagnostic. MC gate references (`tests/test_mc.py`) still use
+explicit (N, L), checked against Lewis inside each test. The note's L = 12 claim (eq. 8 and §5
+diagnostic "L = 16/N = 512 vs L = 12/N = 256 < 1e-8") needs correcting by the note's author (OPEN_ISSUES).
+
+## D-018 — Heston MC path API (Phase 4 reuse) and the 3SE gate design
+**Context:** Phase 4 needs per-step (x, v⁺) for the Brownian-bridge barrier, fixings for Asian and
+autocallable, and the raw draws for common random numbers (autocallable eq. 15). CLAUDE.md requires
+(price, stderr, n_paths, seed).
+**Decision:** `mc.heston_steps(p, times, n_paths, rng, scheme)` is a generator over any strictly
+increasing grid (non-uniform allowed; QE and Euler coefficients are computed per step from Δ_n).
+It yields (t_n, x_n, v_n, z_n) with x = ln(F_t/F), fresh arrays every step (never mutated, so
+consumers can keep references), and z_n = [Z_v; Z_⊥] of shape (2, N). Memory is O(N) per step
+(pitfall 12). `mc.simulate(..., observe=dates)` stacks the snapshots and raises if a date is off the
+grid. `mc.european_price(..., seed=int)` builds `default_rng(seed)` itself, so it can return the
+seed. All strikes share one path set. The state x is independent of F, and S_t = F_0(t) e^{x_t} (eq. 17).
+Euler with κΔ ≥ 1 warns rather than raises (the scheme is defined, pitfall 2). The QE-M domain
+(eq. 13) raises. `np.where` evaluates both QE branches; `errstate` silences only the unselected one,
+and a per-step finiteness check raises otherwise.
+**Gate settings:** Δ = 1/32 (n_steps = 32T), 2e5 paths, puts at K ∈ {70, 100, 140} (bounded payoff,
+finite variance, heston-mc §3.1). Sets FO (T = 1), GS (T = 1), BK-2 (T = 5) and A-I (T = 10) are all
+Feller-violating. Both "qe" and "qe-m" are gated: 24 comparisons, so P(at least one false fail)
+≈ 6% for correct code (eq. 2). Seeds are fixed a priori (20261107 + set index) and never re-seeded.
+COS references are checked against Lewis (< 1e-6) inside the test. Euler-FT is not 3SE-gated (it
+measures +4.4 and +5.1 SE on A-I, as the note predicts); it enters through the bias figure and
+`test_gate_euler_bias_shrinks_with_dt`.
+**Alternatives:** returning full (M, N) path arrays (0.5 GB at 2e5 × 320); a class-based path object.
+
+## D-019 — CF evaluated as Log(1 − q) with log1p (equivalent to eq. 3, no ξ⁻² amplification)
+**Context:** eq. (3) avoids β − d but still takes Log(Υ/2d) = Log(1 + O(ξ²)), amplified by 2κθ/ξ²
+(pitfall 3).
+**Decision:** use d − β = ξ²A/(β + d), Υ/(2d) = 1 − q with q = ξ²A(1 − e^{−dT})/(2d(β + d)),
+D = −A(1 − e^{−dT})/(2d(1 − q)), and Log(1 − q) = ½ log1p(2p + p² + s²) + i atan2(s, 1 + p) for
+−q = p + is. This is algebraically identical to (3), with the same principal branch, and has no subtraction.
+**Consequences:** at ξ = 1e-6 the CF equals Black's to < 1e-10. The ξ = 1e-4 gate residual is 4.4e-8 (ρ = 0).
+Against the DOP853 Riccati ODE the relative error is < 1e-9 on FO and KJ at T up to 10.
+
+## D-020 — Phase 2 test oracles: what is and is not hard-tested
+**Decision:** (i) Published values hard-tested: FO1 and FO2 (5e-8, Lewis and default COS), QuantLib/Lewis L1–5
+(1e-9, both engines), and Broadie–Kaya BK-1 and BK-2 (two sources each, 4 decimals). (ii) Not hard-tested: AMST Table 1/2
+(A1/A2) miss their stated precision on 3 of 8 values. The parameter-rounding diagnosis is in OPEN_ISSUES.
+A-I = 13.08467014 (Choi–Kwok only, ⚑) is not tested, although Lewis matches it to 3e-9. KJ = 4.95212
+(QuantLib only) is not tested. KJ is still used in the CF-vs-ODE and cumulant checks. (iii) The cumulant
+check uses one Richardson step on the h = 1e-3 central difference. The plain stencil has an O(h² c4/c2)
+truncation error of 1.27e-5 on KJ at T = 10 (it scales exactly with h²), which tests the stencil, not eq. (7).
+(iv) Shape checks (monotone and convex in K, 0 ≤ ∂_K P ≤ DF, calendar) run on the ROADMAP domain
+K ∈ [60, 150] with a 1e-9 numerical allowance, 1000x below the gate. The measured worst violation is 2.1e-10.
+On [40, 200] the COS tail noise reaches 3.5e-9 deep ITM.
+
+## D-021 — Fix round 1: required option type (F4) and the small-κ c2 branch (F3)
+**F4:** `cos_price`, `lewis_price` and `mc.european_price` take `cp` as a required argument with no
+default. They previously defaulted to a put, while `bsm.price` defaults to a call. It is required but
+positional-or-keyword, not keyword-only, because the frozen validator tests pass it positionally
+(`cos_price(F, K, T, DF, p, -1)`). Omitting it raises TypeError (`test_cp_is_required`, and
+`tests/test_mc.py::test_input_validation`). `bsm.price` is unchanged: it is a validated module, and
+making its cp required would break backward compatibility.
+**F3:** the κT < 1e-3 branch of `cumulants` is the first-order expansion in κ of the §3.2 moment ODEs:
+c2 = v0(T − ρξT²/2 + ξ²T³/12) + κ[v0(−T²/2 + ρξT³/3 − ξ²T⁴/12) + θ(T²/2 − ρξT³/6 + ξ²T⁴/48)].
+At ξ = 0 it reduces to the expansion of Σ̄, v0T + κ(θ − v0)T²/2. Measured against Richardson CGF
+differences: rel. error ≤ 8.1e-6 at θ/v0 = 50, where the old branch was −2.25e-2. The 1e-3
+threshold is kept, because at the switch the main formula is still accurate to 1.5e-7.
