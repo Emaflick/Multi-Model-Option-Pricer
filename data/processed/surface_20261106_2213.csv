@@ -1,0 +1,3 @@
+stage,rows_in,rows_out,dropped
+"OTM cut (kept expiries, minus parity-rejected strikes)",12956,7650,5306
+static arbitrage in K,7650,7625,25

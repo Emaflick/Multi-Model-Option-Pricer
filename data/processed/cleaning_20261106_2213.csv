@@ -1,0 +1,6 @@
+filter,rows_in,rows_out,dropped
+one root per expiry,15843,14707,1136
+bid > 0,14707,14236,471
+finite ask >= bid,14236,14228,8
+(ask-bid)/mid <= 0.5,14228,13608,620
+open interest > 0,13608,12956,652
