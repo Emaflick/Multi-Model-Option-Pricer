@@ -401,3 +401,78 @@ c2 = v0(T − ρξT²/2 + ξ²T³/12) + κ[v0(−T²/2 + ρξT³/3 − ξ²T⁴/
 At ξ = 0 it reduces to the expansion of Σ̄, v0T + κ(θ − v0)T²/2. Measured against Richardson CGF
 differences: rel. error ≤ 8.1e-6 at θ/v0 = 50, where the old branch was −2.25e-2. The 1e-3
 threshold is kept, because at the switch the main formula is still accurate to 1.5e-7.
+
+## D-022 — SABR: β fixed = 1 for SPX
+**Context:** β cannot be identified from one smile. β and ρ both make the skew: [H02] (3.1a) gives the ATM slope as
+−½(1−β)σ_ATM + ½ρν. [H02] §3.1, Fig. 3.3 says that "β cannot be determined by fitting a market smile since this would
+clearly amount to 'fitting the noise'". The level σ_ATM ≈ αF^{β−1} makes α trade off against β, so a free β gives an
+ill-conditioned (α, β, ρ) fit (sabr.md §1).
+**Decision:** β = 1. (i) Equity convention: a positive index quoted in Black (lognormal) vols. With β = 1, σ_H depends on
+K/F only, so the model is scale-free (no length scale in F, [H02] p. 7). α is then directly a vol, the backbone is flat
+([H02] p. 10), and all spot–vol co-movement sits in ρ. [H02] p. 12 calls β = 1 the usual a-priori choice of desks that
+prefer lognormal models or a horizontal backbone. (ii) Numerics: no boundary at F = 0, a log-Euler MC that is positive
+and an exact martingale, a quadratic ATM α-inversion (sabr.md eq. 9), and Hagan = Obłój at β = 1 (eq. 6), so there is no
+formula choice to defend. `models/sabr.py` implements eq. (2) only; eq. (1) (general β) is written out independently
+in `tests/test_sabr.py` as a cross-check (equal at β = 1 to 1e-12; differs by O(1e-6) at β = 1 − 1e-6).
+**Alternatives:** β = 0.5; β from a log-log regression of historical (F, σ_ATM) ([H02] (3.3); noisy).
+**Consequences:** the model delta is sticky-moneyness (eq. 12). Heavy right tail: E F_T² < ∞ only for ρ ≤ −1/√2
+([LM07]), which drives the put-based MC design (D-023).
+
+## D-023 — SABR Monte Carlo: scheme, step, comparison space, conditional estimator
+**Context:** Phase 3 gate "Hagan vs MC within 3SE for T ≤ 1, |ln K/F| ≤ 0.2" and the degradation figure (sabr.md §2.3, §5).
+**Decision:** (i) `sabr.simulate(alpha, rho, nu, dt, draws)` consumes one (2, N) block [Z_α; Z_⊥] per step (as
+heston-mc.md eq. 4). The vol is exact (eq. 13), evaluated in closed form α_n = α exp(νW_n − ν²t_n/2) from the running
+Brownian W_n. ln F uses log-Euler (14), which is positive and an exact martingale. Taking the draws as an iterable lets
+the halving test feed common random numbers ((Z₁+Z₂)/√2 on the coarse grid). `sabr.mc_price(..., seed=int)` builds
+`default_rng(seed)` and returns (price, stderr, n_paths, seed), as `mc.european_price` does (D-018); cp is required
+(D-021). The code stays in `models/sabr.py`, so validated `engines/mc.py` is untouched; it reuses `mc.mc_estimate`.
+(ii) Gate (fix round 1): set G (α = 0.2, ρ = −0.75, ν = 0.4), **domain ν²T ≤ 0.16**, T ∈ {0.25, 0.5, 1},
+k ∈ {0, ±0.05, ±0.1, ±0.2}, **puts** in **price space** (eq. 19, pitfalls 8 and 11), N = 2e5. The step is **M = 250 steps
+at every maturity (Δ = T/250)**, which satisfies Δ ≤ min(1/250, 0.5/(ν²√N)) (eq. 18). Seeds 20261107 + i are fixed a
+priori. *History:* the first version used Δ = 1/250 (M = ⌈250T⌉). The validator (F1) showed that the (14) wing bias was
+then 0.64 SE_gate at T = 0.25, k = −0.2 (0.0415 vol pt), because the halving check had been run at T = 1 only.
+*Measured now* (`scripts/phase3_gates.py`, CRN halving Δ vs Δ/2, seeds 20261127/28/29):
+max |V_Δ − V_{Δ/2}|/SE_gate = 0.080 (T = 0.25), 0.063 (T = 0.5) and 0.073 (T = 1), all ≤ 0.1. The Richardson bias
+2(V_Δ − V_{Δ/2}) is ≤ 0.17 SE_gate at every gate point: −0.0104, −0.0073 and −0.0084 vol pt at k = −0.2 for T = 0.25, 0.5
+and 1 (one-seed CRN estimates; the validator's exact RQMC values are −0.0107 / −0.0098 / −0.0081 vol pt, i.e.
+−0.164 / −0.169 / −0.139 SE_gate, and halving ratios 0.081 / 0.083 / 0.068, `docs/validation/phase3.md`). The largest in vol pt is −0.021 at T = 0.25, k = +0.2, where it is −0.01 SE_gate because the ITM-put SE is large.
+*False-fail rate:* the 21 comparisons share paths, and they carry small deterministic offsets. These are mainly Hagan's
+own wing error, −1.05 mean z at T = 1, k = −0.2, which is +0.058 vol pt per the validator. So the rate is not the
+iid 1 − 0.9973²¹ ≈ 5.5%. Over 100 fresh seeds (`phase3_gates.py --seeds 100`): 4.0% of seeds fail, the per-comparison
+rate is 0.29%, mean z −0.074, sd 1.04 (validator, its own 100 seeds: 5.0% and 0.67%; the exact offsets predict 0.52%
+per comparison). At the old Δ the validator measured 9.0% of seeds and 0.86% per comparison (F2).
+*Domain (validator F3):* at larger ν²T the gate fails inside the same box because of Hagan's expansion error, not the
+code. Example: ν = 1, T = 0.5 (ν²T = 0.5) gives +0.40 vol pt at k = −0.2, i.e. 5.4 SE. So "Hagan reproduces SABR" holds
+only for set G with ν²T ≤ 0.16. For SPX-calibrated smiles (ν²T ≈ 0.2–0.7), Hagan is a smile parametrisation, not the
+SABR dynamics (see the figure).
+(iii) Conditional estimator (17) (`method="mixing"`): the second, independent MC, with O(Δ²) bias. (α_T − α)/ν is
+computed as α·expm1(νW_T − ν²T/2)/ν, which is exact for every ν > 0 and → αW_T at ν = 0, so pitfall 10 needs no
+threshold. Black is evaluated in ln(Fξ), because Fξ underflows to 0 at large ν²T (ν = 1, T = 10), and `bsm.price` rightly
+rejects F = 0. (iv) For ρ ≤ 0, ln ξ = ρ(α_T − α)/ν − ½ρ²Î ≤ |ρ|α/ν, so Fξ ≤ F e^{|ρ|α/ν}, and the *conditional*
+call is a bounded payoff (der.). The figure therefore prices OTM options with (17) (puts for k ≤ 0, calls for k > 0).
+That cuts the right-wing SE 10–100x relative to deep-ITM puts, whose SE carries F·sd(ξ). The raw log-Euler call stays
+excluded (pitfall 8); the (14) overlay uses puts.
+**Alternatives:** Euler on F or α (not positive, pitfall 9); a trapezoid drift in (14) (breaks the martingale,
+pitfall 7); a vol-space gate (pitfall 11); a ξ control variate (deferred to Phase 6).
+(v) ρ > 0 (validator F4): β = 1 SABR is a strict local martingale, E F_T < F ([LM07]). Scheme (14) is an exact
+martingale, so for ρ > 0 its calls and parity with F target P + DF(F − K), while "mixing" prices the model call. Puts
+agree. Calls and parity with F are the model's only for ρ ≤ 0 (`mc_price` docstring, sabr.md §3.4).
+**Consequences:** the gate measures the total (bias + noise) error at ~0.07–0.1 vol-pt resolution (SE_σ). Hagan's
+smaller in-box errors are resolved by the figure's (17) OTM estimator instead: 0.065 vol pt at k = +0.4 for set G at T = 1.
+The figure's log-Euler overlay also uses M = 250 steps. In the figure summary CSV, the `*_diff_*_incl_mc_noise`
+columns are σ_H − σ_MC from a single seed, noise included; `max_abs_err_volpts_significant` (|z| > 3) is the Hagan
+error that the MC resolves (validator F7).
+
+## D-024 — Hagan β = 1 numerics: log1p form of x(z), NaN policy, oracle bounds
+**Decision:** (i) x(z) keeps the sign split of sabr.md eq. (5) (z ≥ ρ / z < ρ). Each log is evaluated as log1p of a
+sum of non-negative terms, using D − 1 = z(z − 2ρ)/(D + 1):
+x = log1p(z(D+1+z−2ρ)/((D+1)(1−ρ))) or −log1p(−z(D+1+2ρ−z)/((D+1)(1+ρ))). This is algebraically identical to (5), with
+relative error O(ε) for every z instead of ~4ε/|z|. The z_c = 1e-3 cubic series is kept for z → 0 (0/0). The two
+branches mirror each other bitwise, so z_over_x(−z, −ρ) == z_over_x(z, ρ), and the §3.3 identities hold to ≤ 1.3e-15
+(measured; tol 1e-14). The jump across |z| = z_c, net of the true slope, is 4.7e-14 relative (tol 1e-12). x(z) agrees
+with quadrature of ∫du/D(u) to 2.9e-15, including ρ = ±0.999. (ii) |ρ| > 0.999, α ≤ 0, ν < 0 or non-finite inputs raise
+ValueError. 1 + c₁T ≤ 0 (eq. 22) and "no positive α" in eq. (9) return NaN with a RuntimeWarning; nothing is clipped.
+(iii) Test oracle (ii) uses the second-order Taylor bound |σ(±h) − σ_ATM| ≤ |∂_kσ|h + ½|∂²_kσ|h² + 1e-12σ. The note's
+first-order bound misses the curvature term (2.06e-10 at h = 1e-4, OPEN_ISSUES). Oracle (e) (halving) is applied as
+written to (17); for (14), see OPEN_ISSUES.
+**Consequences:** eq. (9) `alpha_from_atm` is ready for the Phase 5 σ_ATM parameterisation (round-trip 1e-14).

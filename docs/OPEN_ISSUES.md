@@ -52,3 +52,32 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   (D-017, fix round 1). The §5 diagnostic "L = 16,
   N = 512 vs L = 12, N = 256 < 1e-8" does not hold for FO and GS. The eq. (13) estimate is about 20x
   pessimistic.
+
+- **Phase 3 · note corrections requested (sabr.md §5 oracles (ii) and (e); derivation-note owner; no ROADMAP gate
+  affected)**
+  (1) Oracle (ii), K = F continuity: the bound |σ_H(±h) − σ_ATM| ≤ |∂_kσ|h + 1e-12σ is first order only. At h = 1e-4
+  (set G, ρ = −0.75, T = 1), the −h side exceeds it by 2.06e-10 = ½∂²_kσ·h², which is exactly the eq. (8) curvature
+  term. The test uses the second-order bound (D-024).
+  (2) Oracle (e), halving with common random numbers for scheme (14): CRN shrinks the SE of V_Δ − V_{Δ/2} far below
+  the real O(Δ) weak bias. So "|V_Δ − V_{Δ/2}| ≤ 3 SE of the difference" fails for correct code.
+  - Measured at the gate step Δ = T/250 (fix round 1, validator F1), set G (`scripts/phase3_gates.py`):
+    - T = 0.25, seed 20261128: z = −7.96 … +2.46.
+    - T = 0.5, seed 20261129: z = −5.13 … +3.77.
+    - T = 1, seed 20261127: z = −4.79 … +1.48.
+  - M·(V_{1/M} − V_{1/2M}) is flat in M within noise. At T = 1, k = −0.2 it is −0.25, −0.28, −0.31 and −0.26 ± 0.02–0.05 at
+    M = 25, 50, 125 and 250. So the bias is order 1, as eq. (16) predicts, and it is not a code error.
+  - The test applies (e) as written to (17), where z ≤ 1.60 at every gate maturity. For (14) it requires
+    |V_Δ − V_{Δ/2}| ≤ 0.1 SE_gate at **every** gate maturity, i.e. |bias| ≲ 0.2 SE. That keeps the per-comparison
+    false-fail rate ≤ 0.33% (heston-mc.md eq. 3).
+  - Measured max ratio: 0.080 (T = 0.25), 0.063 (T = 0.5), 0.073 (T = 1). The Richardson bias is ≤ 0.17 SE_gate everywhere (validator exact: 0.164 / 0.169 / 0.139).
+  - The first version checked T = 1 only and used Δ = 1/250 at every T. At T = 0.25 that criterion fails: 0.321,
+    validator F1. This was fixed by M = 250 steps at every maturity (D-023).
+  **Resolved 2026-11-08 (orchestrator):** errata for (ii) and (e) added in sabr.md §5. The validator re-checked both
+  replacement criteria and found no loosening (`docs/validation/phase3.md`).
+- **Phase 3 · F6, deferred to Phase 5 (minor).** For ρ < 0, `sabr.alpha_from_atm` returns NaN above the feasibility ceiling
+  b²/(4|a|) on the ATM vol. For example, at ρ = −0.9, ν = 5, T = 2 the ceiling is 0.12%, which lies inside plausible
+  calibration bounds. A per-expiry SABR loss must treat these NaNs, either as a penalty or by restricting the bounds.
+  Where b < 0 < a the round-trip is 4.6e-14, not 1e-14 (cosmetic).
+- **Phase 3 · F3, carry to Phase 7 (scope).** The Hagan-vs-MC gate holds on set G with ν²T ≤ 0.16. At SPX-like ν ≈ 1,
+  Hagan is off by +0.40 vol pt (T = 0.5) and +0.82 vol pt (T = 1) at k = −0.2. That is an expansion error, not a code
+  error, and the report must state this domain.
