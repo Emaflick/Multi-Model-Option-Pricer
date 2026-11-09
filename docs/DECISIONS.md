@@ -800,3 +800,155 @@ F_0(t_i) still come from the Phase 0 parity table (`market_20261106_2213.csv`), 
   - Exact checks: max |z| 0.20 (2-date legs) and 0.87 (no-call).
 - **AC-A** (extrapolated beyond 1.61 y): gap −0.025137 (0.000342) = −0.018722 − 0.014800 + 0.008386. Exact checks:
   max |z| 0.72 (2-date legs) and 1.19 (no-call).
+
+## D-039 — Phase 6 benchmark design: cases, references, N grid, R, seeds (declared before the full run)
+**Decision (pre-declared; `scripts/run_benchmarks.py` constants):**
+- **Cases.** Market-like inputs from the Phase 0 parity table, expiry 2027-11-19 (the kept expiry closest to 1 y):
+  T = 1.034734, F = 7677.961695, DF = 0.951346. Strikes K/F = 1.0 (call) and 0.9 (put); all strikes of a case share
+  one path set.
+  - `bsm`: BSM at σ = the calibrated-Heston ATM implied vol at T (COS price at K = F inverted by `iv.implied_vol`).
+    Exact one-step lognormal sampling (asian.md eq. 3 with n = 1), so the MC error is pure noise. Reference Black-76.
+  - `heston_cal`: p̂ of `data/processed/heston_fit_20261106_2213.json`, QE-M on a uniform grid of
+    n_steps = ⌈32 T⌉ = 34 (Δt ≤ 1/32, the D-030 rule). Reference: self-checking COS (D-017).
+  - `heston_fo`: the textbook FO set (heston-mc.md §5; F = 100, DF = 1, T = 1), 32 steps. Reference COS; the published
+    5.785155450 is printed, not gated (Phase 2 already gates it).
+  - COS is checked against Lewis at every Heston point; gate: max |COS − Lewis| ≤ 0.01 × the smallest MC SE.
+- **Grid and replications.** N = 2^10, …, 2^20 (11 points, 1024 … 1 048 576; powers of 2 for Sobol'). R = 16 independent
+  replications per (case, method, N). N is always the total number of terminal samples (antithetic: N/2 pairs;
+  Sobol': 16 scramblings of N/16 points). Seed of replication r: `BASE_SEED + 10^6 set + 10^5 method + 10^3 iN + r`,
+  BASE_SEED = 20261110, set/method in the order of `SETS`/`METHODS`. The r = 0 run is the "single-seed" run.
+- **Timing.** A separate serial pass after the parallel runs: 3 identical repeats of the r = 0 call per (case,
+  method, N), `time.perf_counter`, median. Parallel-run wall times are stored but not used (core contention).
+  Times are machine-dependent (one laptop, NumPy build as installed); only ratios between methods are meaningful.
+- **Parallelism.** `ProcessPoolExecutor`; every task is seeded by its own integer, so results do not depend on the
+  number of workers.
+**Why:** one SPX-like point keeps the benchmark tied to the calibration, and a textbook set gives an external anchor.
+R = 16 makes the relative noise of an RMSE about 18 % per N; over 11 points spanning ln N ∈ [6.9, 13.9], the OLS slope
+SD is ≈ 0.025, i.e. the [−0.6, −0.4] gate is ≈ 4 slope SDs wide on either side of −0.5.
+
+## D-040 — Phase 6 error metrics, slope procedure and gate multiplicity (declared before the full run)
+**Decision:**
+- **Slope fit:** OLS of ln y on ln N over all 11 grid points (`loglog_slope`), reported with its OLS SD. Two fits per
+  (case, method): y = SE of the r = 0 run, and y = the replication error metric.
+- **Error metric:** BSM: RMSE over the R replications vs Black (pure noise, exact sampling). Heston: the replication
+  standard deviation (ddof = 1) about the replication mean, i.e. **noise only**: QE-M discretisation bias is a constant
+  at fixed Δt and would flatten an RMSE slope at large N, so it is excluded from the slope gate. The single-seed |error|
+  of r = 0 is reported and plotted, never fitted.
+- **Heston bias,** measured separately: CV estimator (unbiased for the QE-M expectation, D-041), 8 × 2^20 paths per
+  level, n_steps = base × {1/4, 1/2, 1, 2} rounded up (cal: 9, 17, 34, 68; FO: 8, 16, 32, 64), seeds
+  `BASE_SEED + 10^6 set + 900000 + 1000 level + chunk`. Reported: bias = V_Δt − COS ± SE and the halving difference
+  V(Δt) − V(Δt/2) where n_steps doubles exactly. Not gated.
+- **Gates (`scripts/phase6_gates.py`):**
+  1. plain-MC slope ∈ [−0.6, −0.4] for both fits, all 6 (case, strike) pairs: 12 lines (ROADMAP gate).
+  2. plain MC vs closed form within 3 SE at each N (r = 0 run; Heston vs COS, so the bias is included): 66
+     comparisons. Under correct code P(at least one false fail) = 1 − 0.9973^66 ≈ 16 % (heston-mc.md eq. 2); stated
+     here so that a single 3–3.5 SE excursion is read as expected multiplicity, not re-seeded.
+  3. antithetic, CV and Sobol' unbiased within 3 SE: work-weighted pool over all R × 11 runs,
+     V̄ = ΣN V / ΣN, SE = √(ΣN² SE²)/ΣN. BSM: vs Black (plain included, 8 lines). Heston: vs the pooled plain MC at the
+     same Δt with √(SE₁² + SE₂²) (eq. 2), which isolates the estimator from the scheme bias (12 lines). 20 lines,
+     FWER ≈ 5 %.
+  4. COS vs Lewis ≪ smallest SE (D-039).
+  5. Every `benchmark_*` figure listed in `benchmark_manifest.csv` with its sha256, written by `run_benchmarks.py` in a
+     `full` run, and no unlisted `benchmark_*.png` in `report/figures/`.
+- **Reported, not gated:** VR at equal N = (rms SE_plain / rms SE_m)² at N = 2^20 (also the error-metric ratio);
+  work-normalised efficiency = VR × t_plain / t_m at N = 2^20; Sobol' empirical rate = the slope of its error metric;
+  SE honesty ratio √(mean_N err²/rms SE²) (≈ 1 if the quoted SE is the true SD; noise ≈ ±0.06 at R = 16).
+**Why:** a slope fitted on one seed's |error| has O(1) noise per point; the SE fit is nearly deterministic, and the
+R-replication RMSE is the honest error. The 3SE check is the project convention (CLAUDE.md principle 4), so its
+multiplicity is declared, not tuned.
+
+## D-041 — Control variate for the vanilla benchmark: X = F_T with exact mean F, under BSM and Heston
+**Decision:** regression CV of asian.md eqs. (14)–(15) (`exotic_mc.control_variate`, OLS ĉ on the same paths) with the
+terminal forward X = F_T, E X = F. The mean is exact for BSM exact sampling and for **QE-M on any grid**:
+E[e^{x_{n+1}−x_n} | v_n] = 1 (heston-mc.md eq. 12), so the control adds no discretisation bias. `vanilla_mc` always uses
+QE-M for Heston, so this holds by construction (plain QE would break it, pitfall 9 of heston-mc.md).
+**Alternative considered:** the shadow-BSM payoff on the same normals (asian.md H2, eq. 17), exact mean Black-76 at
+V^B(T). `run_benchmarks.py` measures both on one path set (`benchmark_cv_choice.csv`); in the pilot (`--quick`,
+4096 paths) F_T gave VR 2.4–3.4 vs 1.3–2.2 for the shadow on both Heston sets. With high vol-of-vol (ξ = 1.65) the
+Heston and shadow log-returns decorrelate, while the linear F_T captures the delta part of any payoff. F_T is also
+one line and model-free. A CV removes noise, never bias.
+
+## D-042 — Sobol' RQMC and antithetic counting
+**Decision:**
+- **RQMC:** scrambled (LMS + digital shift, scipy default) `qmc.Sobol(d, bits=30, rng=...)`, `random_base2`,
+  z = Φ⁻¹(u). scipy scrambles B = 30 digits, so u = k·2⁻³⁰ and u = 0 has probability 2⁻³⁰ per coordinate. The first
+  full run drew ≈ 1.2e10 coordinates and hit u = 0 (z = −∞): `sobol_normals` raised as designed, and no output was
+  written. **Fix:** the scramble is completed to full resolution with a uniform jitter inside the point's own 2⁻³⁰
+  cell, u ← u + U·2⁻³⁰, U ~ U[0, 1) from the same generator. Each point stays inside its elementary interval, so the
+  net (stratification) property at every resolution ≤ 2⁻³⁰ is unchanged (unit test: one point per 1/n cell), and every
+  coordinate is exactly U(0, 1), so the estimator stays unbiased. A coordinate still at 0 or 1 raises. R_q = 16 independent scramblings of N/16 points each (child seeds
+  `SeedSequence(seed).spawn(16)`); estimate = mean of the 16, SE = their SD/√16. A single scrambled run has no error
+  estimate, so no 3SE claim is made on one run. The 16-scramble estimator is then replicated R = 16 times like the others
+  (D-039), so its error metric and slope are measured the same way.
+- **Dimensions:** BSM d = 1. Heston d = 2 × n_steps, coordinates (2k, 2k+1) → (Z_v, Z_⊥) of step k, in time order. No
+  Brownian-bridge or PCA reordering: the effective dimension is high, and the measured rate is reported as it is.
+- **Antithetic:** N paths = N/2 iid draws Z and their negations −Z (both rows for Heston); SE from the N/2 pair means
+  (`vr.antithetic_estimate`), never from the N correlated payoffs; odd N raises.
+**Why:** equal-N comparisons are honest only if N counts terminal samples for every method. Splitting the QMC budget
+into 16 scramblings costs a factor √16 against one scrambling at the same N if the rate were N⁻¹; it buys a valid SE.
+
+## D-043 — Phase 6 results and their reading (measured; `scripts/run_benchmarks.py`, `scripts/phase6_gates.py`)
+**Context:** the procedure of D-039–D-042 was fixed before the full run. The only change after a full-run attempt
+is the Sobol' jitter of D-042, which was needed because that attempt raised before writing any output. Two complete runs
+were made, 216 s and 294 s on 8 workers (machine load). Their `benchmark_runs.csv` prices and SEs are **bit-identical**;
+only the wall times differ. The numbers below are from the second run, which is the one on disk. The BSM σ is 18.40 %
+(calibrated-Heston ATM IV at T).
+**Gates:** 52/52 PASS (`docs/validation/gate_outputs/phase6_gates.txt`).
+- **Plain-MC slopes (SE fit / error-metric fit):** bsm ATM −0.501/−0.538, bsm 90 % put −0.503/−0.487,
+  heston_cal ATM −0.499/−0.517 and put −0.499/−0.554, heston_fo ATM −0.505/−0.518 and put −0.500/−0.541.
+  The OLS SDs of the error-metric slopes are 0.020–0.033.
+- **Per-N 3SE (66 tests):** max |z| = 2.90, so none exceeds 3.
+- **Pooled unbiasedness:** max |z| = 2.01 (BSM ATM Sobol').
+- **COS vs Lewis:** 7.4e-9, against a smallest SE of 3.1e-3.
+- **SE honesty ratio:** 0.90–1.07 for every method, so the antithetic pair-mean SE and the 16-scramble RQMC SE are
+  calibrated.
+**Efficiency at N = 2^20 (VR = rms-SE² ratio; eff = VR × t_plain/t_m, serial medians on this machine):**
+- **BSM** (t: plain 0.019 s, antithetic 0.014 s, CV 0.029 s, Sobol' 0.017 s):
+  - antithetic: VR 1.59 / 1.35 (ATM / put), eff 2.24 / 1.89. Its time is lower because it draws half the normals.
+  - CV: VR 4.73 / 1.88, eff 3.13 / 1.25.
+  - Sobol': VR 1.4e5 / 7.5e5, eff 1.6e5 / 8.4e5.
+- **Heston** (t: plain 1.28–1.34 s, antithetic 1.21–1.25 s, CV 1.32–1.44 s, Sobol' 1.89–1.90 s):
+  - antithetic: VR 1.11–1.51, eff 1.16–1.54.
+  - CV (F_T): VR 2.39–3.42, eff 2.21–3.16.
+  - Sobol': VR 3.3–6.8, eff 2.35–4.78.
+- **Timing reproducibility:** in the first run the efficiencies were antithetic 1.22–1.64, CV 2.40–3.43 and
+  Sobol' 2.4–4.9 for Heston, so efficiencies carry about ±10 % timing noise. VRs are seed-deterministic.
+- **CV choice (2^18 paths, `benchmark_cv_choice.csv`):** F_T gives VR 2.39 / 3.41 (cal) and 2.56 / 2.51 (FO), against
+  1.34 / 1.75 and 1.74 / 2.39 for the shadow BSM. This confirms D-041.
+**Empirical RQMC rate (error-metric slope ± OLS SD):**
+- BSM: −1.015 ± 0.032 (ATM) and −1.089 ± 0.032 (put), i.e. about N⁻¹ for a 1-D kinked payoff.
+- Heston (68 and 64 dims, time-ordered): −0.51 to −0.63. RQMC there is a constant-factor gain only.
+**Heston QE-M bias (CV runs, 8.4e6 paths per level; bias ± SE, vol bp = bias/vega):**
+- **heston_cal at the base Δt = T/34:**
+  - ATM: −0.13 ± 0.15 (−0.5 ± 0.5 vol bp).
+  - 90 % put: −0.40 ± 0.15 (−2.6 SE, −1.6 ± 0.6 vol bp).
+  - Pooled plain MC at the same Δt − COS: −0.29 (−2.5 SE) and −0.30 (−2.1 SE).
+- **heston_cal at coarse Δt = T/9:** +2.31 (15.9 SE, +7.8 vol bp) and +0.56 (3.7 SE).
+- **heston_cal halving differences** (T/17 → T/34 → T/68): none beyond 1.3 SE.
+- **heston_fo:** every level is within 1.33 SE of COS (|bias| ≤ 0.0023 on a 5.79 price).
+- **Reading:** at the benchmark Δt the bias is ≲ 2 vol bp, and below the plain SE at N = 2^20 (0.65 ATM), so it cannot
+  contaminate a single-run 3SE check at N ≤ 2^20. It is visible only at pooled precision (≈ 2.5 SE on 3.4e7 paths),
+  which is why the slope gate uses the noise metric.
+**Caveats:** times are one machine's serial medians, so only ratios between methods carry over. At small N, Sobol'
+time is dominated by building 16 Sobol' engines (≈ 1 ms), which is the vertical segment in `benchmark_time_vs_error.png`.
+The RMSE-based VR (`VR_err`) at a single N rests on 16 replications (±35 %); the SE-based VR is quoted.
+
+**Corrections from independent validation (Phase 6; `docs/validation/phase6.md`):**
+- **RQMC error estimate.** The SE is right on average but its tails are heavy. Each scrambling's error is right-skewed
+  (skew +1.1 to +1.7), so the 16-scramble t-statistic exceeds 3 in 1.8–3.2 % of runs, against 0.9 % for t₁₅. This is
+  also why the on-disk BSM Sobol' runs have mean z² of 1.43 / 1.54. "RQMC SE is calibrated" therefore holds on
+  average, not in the tails.
+- **QE-M bias by step size, full ladder** (calibrated set, 90 % put). From T/9 to T/68 the bias reads +0.37, −0.80,
+  −0.40, −0.28. The T/17 figure (−0.80 ± 0.11, −3.2 vol bp) combines both runs. The put bias is not monotone in Δt. The
+  T/9 put value is not robust across runs (+0.56 here, +0.17 in the independent run).
+- **Gate count.** The 6 slope fits on SE are −0.5 by construction, and the slope gate has little power against SE bugs.
+  The informative evidence is the error-metric fits, the independent fresh-seed fits (104 fits, range −0.558 … −0.445)
+  and the SE-honesty checks across seeds.
+- **Numeric slips.**
+  - D-042: a full run draws ≈ 5.3e9 Sobol' coordinates, not ≈ 1.2e10.
+  - The uncertainty of a single-N `VR_err` is about ±50–70 %, not ±35 %.
+  - BSM efficiencies vary by 9–22 % between runs, because BSM run times are only 11–29 ms.
+- **Pre-registration.** It cannot be shown from git, because D-039/D-040 were committed together with the results. The
+  independent rerun is bit-identical in every price and SE, and the fresh-seed fits find nothing outside the band.
+- **Regeneration manifest.** It proves integrity, not provenance. Provenance is shown by deterministic regeneration,
+  which the independent rerun confirms.

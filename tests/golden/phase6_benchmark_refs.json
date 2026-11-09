@@ -1,0 +1,15 @@
+{
+ "topic": "Phase 6 benchmark reference prices (vanilla, forward-based)",
+ "created_by": "validator agent, Phase 6 independent validation, 2026-11-09",
+ "source": "bsm: Black-76 closed form in validator code (tests/validation/test_phase6_independent.py::black76). sigma is the calibrated-Heston ATM implied vol taken as an input from report/figures/benchmark_references.csv; the implementation's bsm.price agrees to 0.0. heston_*: two independent methods agree. (A) Gil-Pelaez P1/P2 with the little-trap CF (Albrecher et al. 2007), scipy.integrate.quad on [0, inf), epsabs 1e-14, epsrel 1e-13, in validator code; this is the stored value. (B) the implementation's forward-centred COS, as written by scripts/run_benchmarks.py (field method_B_cos_impl). heston_fo ATM also matches Fang and Oosterlee (2008) Table 4, 5.785155450 (10 digits), to 1.6e-8.",
+ "conventions": "price = DF E[(cp (F_T - K))^+], cp = +1 call, -1 put; inputs F, DF, T (ACT/365F years); Heston params [kappa, theta, xi, rho, v0] with dF = sqrt(v) F dW^F, dv = kappa(theta - v) dt + xi sqrt(v) dW^v, d<W^F, W^v> = rho dt",
+ "accuracy": "max |A - B| = 7.36e-09 (heston_cal, F = 7678); use an absolute tolerance of 1e-6",
+ "cases": [
+  {"set": "bsm", "strike": "ATM call", "F": 7677.961694908149, "DF": 0.95134635345534, "T": 1.0347338597158802, "K": 7677.961694908149, "cp": 1.0, "model": 0.1840369273335226, "price": 544.7285783452558, "method_B_cos_impl": 544.7285783452558, "abs_diff_A_B": 0.0},
+  {"set": "bsm", "strike": "90% put", "F": 7677.961694908149, "DF": 0.95134635345534, "T": 1.0347338597158802, "K": 6910.165525417335, "cp": -1.0, "model": 0.1840369273335226, "price": 231.80866195423587, "method_B_cos_impl": 231.80866195423587, "abs_diff_A_B": 0.0},
+  {"set": "heston_cal", "strike": "ATM call", "F": 7677.961694908149, "DF": 0.95134635345534, "T": 1.0347338597158802, "K": 7677.961694908149, "cp": 1.0, "model": [4.575131438111167, 0.05292535169697239, 1.6476980696550318, -0.7517989242308154, 0.05237208868271241], "price": 544.7285783526142, "method_B_cos_impl": 544.728578345254, "abs_diff_A_B": 7.360199560935143e-09},
+  {"set": "heston_cal", "strike": "90% put", "F": 7677.961694908149, "DF": 0.95134635345534, "T": 1.0347338597158802, "K": 6910.165525417335, "cp": -1.0, "model": [4.575131438111167, 0.05292535169697239, 1.6476980696550318, -0.7517989242308154, 0.05237208868271241], "price": 317.2988114483725, "method_B_cos_impl": 317.29881144102114, "abs_diff_A_B": 7.351331987592857e-09},
+  {"set": "heston_fo", "strike": "ATM call", "F": 100.0, "DF": 1.0, "T": 1.0, "K": 100.0, "cp": 1.0, "model": [1.5768, 0.0398, 0.5751, -0.5711, 0.0175], "price": 5.785155434376186, "method_B_cos_impl": 5.785155434185567, "abs_diff_A_B": 1.9061907607920148e-10},
+  {"set": "heston_fo", "strike": "90% put", "F": 100.0, "DF": 1.0, "T": 1.0, "K": 90.0, "cp": -1.0, "model": [1.5768, 0.0398, 0.5751, -0.5711, 0.0175], "price": 2.709531774753742, "method_B_cos_impl": 2.7095317745645477, "abs_diff_A_B": 1.8919443789400248e-10}
+ ]
+}

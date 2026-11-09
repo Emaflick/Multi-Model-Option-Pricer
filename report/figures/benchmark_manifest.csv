@@ -1,0 +1,13 @@
+file,sha256,bytes,written_by,run_id,config
+benchmark_convergence_bsm.png,1986d47757ea57aa16a1ac1ba4b27d2433eb49f13f44dc575a4f17cdceae3b93,170073,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_convergence_heston_cal.png,fa7073368edcc64b17da5c4b74552ffb592ffb155032415529e22778e2c37961,191341,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_convergence_heston_fo.png,808154070cea5de98693400a57ad603514c19dcebd5e4009e93227c7c960bd4f,184858,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_time_vs_error.png,8797d58e18207b5ff8e5c078a1ee008a8ffdda8ac882dea1771cae1ee3d19e4e,308799,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_heston_bias.png,38f2e04521eb58d4b700b079dbe372ba9971863e428806ccff8aa7f568f054c8,96780,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_references.csv,5699a638939efd18c8a4b25b25f3b1f4727585bf291f94ed107a1baaabf5b44f,1287,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_runs.csv,27abfc3594fc07d03281cd7c49ce974c581eb2823eff35b88eadcfa7bc49b51c,428017,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_convergence.csv,050e89c33b88eda1cc4d64091e034ae06f3469bf6bc8f31cc365cd2882cf4377,54033,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_timing.csv,d6978d5906225dff80e6d06602e5b217aac77d771205bfa60d7af191d17330d6,5780,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_bias.csv,459a803d43b067fb8c7ec79b57c683aa973077c06842f891e44ba5bd48aa3561,3083,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_cv_choice.csv,8446437d2ca499bf37ab41fc7ae19909a80dc9948a572201557f119188e554d5,429,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
+benchmark_summary.csv,a0df5c5226bb51932319ce6aa90ab38ece849ca14deb7cb947ce8b53431b9f28,6517,scripts/run_benchmarks.py,2026-11-09T15:29:59+00:00,full
