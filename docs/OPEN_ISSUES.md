@@ -81,3 +81,35 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
 - **Phase 3 · F3, carry to Phase 7 (scope).** The Hagan-vs-MC gate holds on set G with ν²T ≤ 0.16. At SPX-like ν ≈ 1,
   Hagan is off by +0.40 vol pt (T = 0.5) and +0.82 vol pt (T = 1) at k = −0.2. That is an expansion error, not a code
   error, and the report must state this domain.
+- **Phase 4 · autocallable BSM-vs-Heston gap is illustrative until Phase 5 (deferred; no gate failed).** The ROADMAP
+  asks for BSM vs *calibrated* Heston. Calibrated parameters do not exist yet, so `scripts/autocall_compare.py` runs on the
+  GS set (Gatheral 2006 Table 3.2 SPX fit, v0 := θ; D-029). Every output is labelled "illustrative, pre-calibration" and
+  written to `report/figures/autocall_attribution_illustrative.{png,csv}`. With GS, AC-Q gives V_H − V_BS = −0.014362
+  (CRN SE 0.000171). GS's ATM vol at 1.5 y is 16.9% against the market's 18.3%, so these numbers must not enter the
+  report. **Next step (Phase 5):** write the fitted parameters to JSON, run
+  `scripts/autocall_compare.py --heston-params <fit>.json`, and use only that output (tag = JSON stem) in the report. AC-A
+  (3 y) stays an extrapolation beyond the last kept expiry (1.61 y) in carry and in Heston.
+- **Phase 4 · Deng–Mallett–McCann (2011) Case 2 published value not reproduced (oracle issue; autocallable.md §5, not a
+  gate; validator F7b).** Inputs as the note maps them:
+  - monthly t_i = i/12;
+  - B_ac = B_c = 1.02, memory, accrual coupons c_j = e^{0.092 t_j} − e^{0.092 t_{j−1}};
+  - B_p = 0.8 (European), σ = 20%, F_0(t) = 100 e^{0.04t}, DF(t) = e^{−0.06t}.
+  **Observed vs expected:** two implementations agree, and neither matches the paper.
+  - The validator's exact backward induction gives 97.507 (its own MC: 97.509 ± 0.062).
+  - qpricer MC gives 97.508 (SE 0.009, 1e6 paths; `scripts/phase4_gates.py`).
+  - The published value is 98.39 (explicit FD), about 100 SE away.
+  Case 1 (≈ par) and the Table 1 first-call probabilities are reproduced (qpricer max |z| 2.11; p_1 = 0.3767 is
+  tested). **Diagnosis:** unresolved. Candidate causes are a different coupon or protection convention in the paper
+  (e.g. coupon paid only at call versus the accrual mapping, or the protection terms) and FD error (the paper states
+  no FD accuracy). Nothing was tuned to match. **Next step:** read the journal version of the paper, or obtain the
+  exact term sheet; until then the value is not used as an oracle.
+- **Phase 4 · minor nits from the validator's re-validation (N1, N2; no gate affected).**
+  - **N1.** `autocall_compare._stats` builds the per-unit-coupon leg as `replace(sheet, c=1.0)`. On a vector-coupon sheet,
+    the eq. (17) par coupon would then be a simple rate on c·τ_i instead of a multiplier on the given schedule. Only scalar
+    sheets reach this code today.
+  - **N2.** `scripts/phase4_gates.py` quotes two validator numbers as fixed citations: the pooled G2m biases and the
+    exact Deng Case 2 value 97.507. Both are re-runnable from `tests/validation/test_phase4_independent.py`.
+  - **F9 (validator round 0).** `kind="cv"` raises for the whole strike vector if any strike has an all-zero control
+    payoff. This is documented behaviour.
+  - **F10 (size).** `src/` is 1900 lines, above the ≲ 1500 target. Validated modules are not being refactored; this is
+    reported to the owner.

@@ -209,3 +209,25 @@ def market_data(table: pd.DataFrame) -> dict[str, MarketData]:
         raise ValueError("more than one kept root per expiry: deduplicate roots first")
     cols = kept[["expiry", "F", "DF", "T"]].itertuples(index=False)
     return {e: MarketData(F, DF, T) for e, F, DF, T in cols}
+
+
+def forward_curve(table: pd.DataFrame, t, t_fit: float = 0.3) -> tuple[np.ndarray, np.ndarray]:
+    """(F_0(t), DF(t)) at dates t from the kept expiries of an ``implied_forwards`` table (D-025).
+
+    Inside [T_min, T_max]: linear interpolation of ln F and ln DF in T (piecewise-flat forward rate
+    and carry; autocallable.md §1, asian.md §1 (a)). Beyond T_max: flat extrapolation with the
+    constant zero rate r and carry b fitted on T > t_fit (D-007): r = OLS slope of -ln DF on T
+    through the origin, b = OLS slope of ln F on T; ln DF(t) = ln DF(T_max) - r (t - T_max),
+    ln F(t) = ln F(T_max) + b (t - T_max). Dates before T_min need S_0 (D-008) and raise.
+    """
+    kept = table[table.kept.astype(bool)].sort_values("T")
+    T, lnF, lnD = kept["T"].to_numpy(float), np.log(kept.F.to_numpy(float)), np.log(kept.DF)
+    lnD = lnD.to_numpy(float)
+    t = np.atleast_1d(np.asarray(t, dtype=float))
+    if not (np.all(np.isfinite(t)) and t.min() >= T[0]):
+        raise ValueError(f"dates must be finite and >= the first kept expiry T = {T[0]:.6f}")
+    fit = T > t_fit
+    r = -(T[fit] @ lnD[fit]) / (T[fit] @ T[fit])
+    b = np.polyfit(T[fit], lnF[fit], 1)[0]
+    ext = np.maximum(t - T[-1], 0.0)
+    return np.exp(np.interp(t, T, lnF) + b * ext), np.exp(np.interp(t, T, lnD) - r * ext)

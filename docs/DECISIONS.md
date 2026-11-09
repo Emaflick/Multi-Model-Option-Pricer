@@ -476,3 +476,150 @@ ValueError. 1 + c₁T ≤ 0 (eq. 22) and "no positive α" in eq. (9) return NaN 
 first-order bound misses the curvature term (2.06e-10 at h = 1e-4, OPEN_ISSUES). Oracle (e) (halving) is applied as
 written to (17); for (14), see OPEN_ISSUES.
 **Consequences:** eq. (9) `alpha_from_atm` is ready for the Phase 5 σ_ATM parameterisation (round-trip 1e-14).
+
+## D-025 — Exotics market inputs: fixing forwards, discount curve and S_ref from the parity table
+**Context:** Asians and autocallables need F_0(t) = F(0, t) and DF(t) at arbitrary dates (asian.md §1 (a),
+autocallable.md §1), and the autocallable needs a reference level S_ref. Spot is informational only (D-008).
+**Decision:** `market.forward_curve(table, t)` (an added function; the validated Phase 0 code is unchanged):
+- between kept expiries, linear interpolation of ln F and ln DF in T (piecewise-flat forward rate and carry);
+- beyond T_max = 1.61 y, flat extrapolation from the last expiry with the constant zero rate r (OLS of −ln DF on
+  T through the origin) and carry b (OLS slope of ln F on T), both fitted on T > 0.3 (the identified part, D-007);
+  the curve is continuous at T_max;
+- dates before the first kept expiry (T = 0.019) raise, because they would need S_0 (D-008).
+S_ref := F_0(T_(1)) · DF(T_(1)) = 7374.4255 (first kept expiry, spot minus the PV of dividends to it). Deterministic
+rates and carry (all forward measures coincide); every cash flow is discounted with the parity DF at its own date,
+with no issuer credit or funding spread (autocallable.md §1).
+**Alternatives:** Yahoo spot as S_ref (non-synchronous, D-008); linear interpolation of F (pitfall 3 of asian.md);
+discounting with a CDS spread as in Deng et al. (no issuer is modelled).
+**Consequences:** the AC-Q dates (0.25–1.5 y) are interpolated; their DF_i are non-increasing (checked, raises
+otherwise; short-end DF noise of D-007 lies below 0.25 y). AC-A (3 y) is extrapolated and labelled as such. Tests:
+exact at the expiries, log-linear midpoints, continuity at T_max (`tests/test_asian.py::test_forward_curve_builder`).
+
+## D-026 — Autocallable term sheets AC-Q / AC-A and the sheet validation
+**Context:** ROADMAP Phase 4: annual/quarterly observations, autocall 100%, coupon barrier, 60% European
+protection, optional memory. autocallable.md §1 leaves the coupon and B_c open.
+**Decision:** `products.Autocall`. Study sheets (`scripts/autocall_compare.py`): **AC-Q** t_i = i/4, n = 6,
+T = 1.5 y (inside the last kept expiry); **AC-A** t_i = 1, 2, 3 (carry and Heston extrapolated). Both B_ac = 1,
+B_c = 0.7, B_p = 0.6, memory on, c = 8% p.a. simple (c_i = c τ_i), notional 1, flows paid at t_i without lag.
+Par coupons are reported by the ratio estimator (eq. 17), so c = 8% is only the pricing input. Validation is
+0 ≤ B_c ≤ B_ac (a call always pays its coupon) and B_p ≥ 0. The note's §1 ordering B_p ≤ B_c is a term-sheet
+convention that eqs. (1)–(11) do not need, and its own §5 sub-case "B_c = 0" (with B_p = 0.6) violates it, so the
+code does not enforce it (erratum added to autocallable.md).
+`c` may also be a tuple of n per-period coupons (fix round 1, validator F7b). That makes accrual schedules such as
+Deng et al. (2011) Case 2 (c_j = e^{0.092 t_j} − e^{0.092 t_{j−1}}) representable. `replace(sheet, c=1.0)` for the
+par-coupon ratio (17) applies to scalar-c sheets only.
+**Alternatives:** B_c = 0.8; no memory; a 6-month sheet.
+**Consequences:** with memory and c = 8%, V_BS > 1 for both sheets; par coupons are 5.2–5.8% (BS) and 7.3–7.5%
+(illustrative Heston). Deng Case 2 by qpricer MC: 97.508 (SE 0.009, 1e6 paths). That equals the validator's exact
+97.507, not the published 98.39 (OPEN_ISSUES). The first-call p_i match Deng Table 1 (max |z| 2.11).
+
+## D-027 — Erratum E1: six Haug σ = 0.30 barrier values are not correctly rounded (per-cell treatment)
+**Context:** barrier.md §5 tests the Haug (1998) table at 5e-5. Six σ = 0.30 cells (QuantLib only, ⚑) miss by
+5.2e-5 to 6.25e-5: cuo(105, K = 90), puo(105, K = 90/100/110), pdi(95, K = 100/110). The other 66 cells pass at 5e-5
+(max 4.96e-5 at σ = 0.25, 4.59e-5 at σ = 0.30).
+**Diagnosis:** three independent methods agree on the six cells.
+- Direct quadrature of the killed and first-passage densities, in `tests/test_barrier.py` (no A..F algebra): within
+  ≤ 3.2e-14 of RR (printed by `scripts/phase4_gates.py`).
+- The validator's Haug spot-form RR (RRS) and a Crank–Nicolson PDE: they agree to ≤ 5.5e-10
+  (`docs/validation/phase4.md`).
+The printed entries differ from the correctly rounded value by one unit in the 4th decimal; e.g. puo K = 90 is
+4.22923747, printed 4.2293. The validator found no small perturbation of (σ, T, r, b) that fits the column better.
+**Decision (fix round 1, validator F1):** no tolerance is loosened.
+- The 66 correctly rounded cells are tested against the published values at the note's 5e-5.
+- The six E1 cells are flagged `published_correctly_rounded = false` in the validator's golden file
+  `tests/golden/barrier_haug.json`. That file (RRS = PDE) was created independently and is read-only here. These
+  cells are tested against the golden value at 1e-10.
+- All 72 cells are also tested against the golden value at 1e-10 (measured max 4.8e-14), and RR vs quadrature at
+  1e-12.
+- `scripts/phase4_gates.py` prints the two groups separately.
+The first version moved the whole σ = 0.30 column to 1e-4, which loosened 30 cells that pass at 5e-5; that version is
+withdrawn. Erratum E1 is in barrier.md §8.
+**Consequences:** no formula change. As oracles, the six published entries are replaced by a two-method golden value.
+
+## D-028 — Barrier engine: spot barrier with flat carry, bridge weight, Heston v⁺ bridge, gate design
+**Context:** barrier.md §1 asks for D-entries on the barrier convention and the Heston bridge (pitfall 6).
+**Decision:** (i) The barrier is on spot, S_t = F_t e^{−b(T−t)}, with a flat-carry kernel input b (default 0, i.e. a
+barrier on the T-forward). The closed form and the MC share the log-distance of eq. (8). r = −ln DF / T enters only the
+rebate term. (ii) MC: conditional bridge weight w = Π(1 − p_i) (eq. 10; Rao–Blackwell, smooth), not uniform
+sampling; in := g(1 − w) and out := g·w come from **separate calls** on one seed, so in + out = vanilla holds to
+round-off (3.6e-15 measured). (iii) Discrete monitoring: indicator at t_j = jT/m, no bridge, t = 0 not monitored.
+(iv) Under Heston the bridge uses the left-point variance v_i⁺ (approximate; there is no BGK under Heston).
+Its bias is O(Δ): on the model-free cdo(K = H = 90) = 10·DF on FO, the 25-seed pooled bias is +0.095, +0.055,
++0.020 and +0.012 at Δ = 1/32, 1/64, 1/128, 1/256 (validator; see Consequences). The gate uses Δ = 1/128, where
+the bias is below the gate SE. (v) MC rebates are not implemented (R = 0 in the gates; the
+closed form has them). (vi) Gate design: Haug market, all 8 types, K ∈ {90, 110} (both branches of table 3 for
+H = 95 down and 105 up), b ∈ {0, 0.04}, M ∈ {1, 50} (the BSM bridge is exact for every M), 2e5 paths, one seed
+per configuration (SEED + 10 + j). That is 56 non-zero 3SE comparisons, plus 8 cells that must be exactly 0
+(cuo with K ≥ H, pdo with K ≤ H). (vii) Code lives in the new `engines/exotic_mc.py`, so the validated `mc.py` is
+untouched; it reuses `mc.heston_steps`, `mc.uniform_grid`, `mc.mc_estimate`.
+**Consequences:** gate max |z| 1.99 (BSM) and 2.97 (Heston ξ = 1e-4).
+- *G2h seed (validator F4).* The declared seed is about a 1-in-75 draw: 1.3% of seeds give max |z| ≥ 2.97. Its path
+  set has a vanilla error of −3.15 SE (call) and +3.13 SE (put), and the barrier z tracks the vanilla error with
+  correlation 0.905. Over 300 validator seeds the per-cell mean z is −0.031 to +0.011 (sd 0.96–1.07, 0.25% beyond 3 per
+  comparison): no bias. An earlier 20-seed scan here (`phase4_gates.py --seeds 20`) gave a pui mean of 0.36; at
+  20 seeds that is noise (sd/√20 ≈ 0.2).
+- *v⁺-bridge bias under Heston (validator F3).* The per-Δ numbers printed by the gate script use one seed per Δ
+  and understate the bias. Pooled over 25 seeds (validator), the model-free cdo(K = H = 90) − 10·DF on FO is
+  +0.095, +0.055, +0.020 ± 0.005 and +0.012 ± 0.005 at Δ = 1/32, 1/64, 1/128, 1/256. That is an O(Δ) bias.
+  G2m passes at Δ = 1/128 because 0.020 is below the gate SE (0.024), not because the bias is zero. At Δ = 1/64,
+  about 16% of seeds would fail the 3SE gate. Heston barrier prices from this engine therefore carry a bias of
+  about 0.8 SE at 2e5 paths and Δ = 1/128; use Δ ≤ 1/256 when tighter accuracy is needed.
+- *Figure.* The uncorrected grid-monitoring bias has fitted log-log slope 0.422 over m = 4…512. That equals the
+  noise-free BGK prediction on the same m (0.426), whose local slope rises from 0.32 (m = 4 → 8) to 0.50 (m ≈ 10⁶)
+  (`scripts/exotics_figures.py`; erratum E2, barrier.md §8). The validator's exact discrete prices give a fitted
+  slope of 0.4295, with local slopes rising from 0.364 to 0.478.
+
+## D-029 — Autocallable model gap uses an illustrative, pre-calibration Heston set until Phase 5
+**Context:** the ROADMAP gate compares BSM (ATM vol) with *calibrated* Heston, but calibration is Phase 5.
+**Decision:** `scripts/autocall_compare.py --heston-params <json>` (keys kappa, theta, xi, rho, v0, optional
+label). Its default is **GS**: κ = 1.3253, θ = 0.0354, ξ = 0.3877, ρ = −0.7165 from Gatheral (2006) Table 3.2, a
+published SPX fit (via Keller-Ressel 2011, as in heston.md §5), with v0 := θ (our choice). It is not fitted to the
+2026-11-06 snapshot. Every output made with it carries the label "illustrative, pre-calibration" (stdout, CSV
+`label` column, figure title). The files are named `report/figures/autocall_attribution_<tag>.{png,csv}`, with
+tag = "illustrative" for the default and the JSON stem otherwise, so Phase 5 output cannot overwrite or be confused
+with it. Phase 5 re-runs the script with the fitted parameters, and only those numbers go into the report.
+**Alternatives:** the FO (Eurostoxx) set; waiting for Phase 5 (it would leave the gate untested).
+**Consequences:** GS's ATM implied vol at T = 1.5 is 16.9%, against a market ATM vol of 18.3%. The illustrative
+gap therefore shows the mechanism, not a market number.
+
+## D-030 — Asian engine: running sums, BSM-only geometric control variate, OLS ĉ on the same paths
+**Decision:** (i) `asian_averages` keeps Σ_A and Σ_ln (eq. 5), so memory is O(N) at n = 250 and there is no
+product overflow. A t = 0 fixing is an ordinary entry with F(0, 0) supplied by the caller. Heston uses
+`fixing_grid` (⌈τ_i/Δ_max⌉ equal sub-steps ending on each date; `heston_steps` already recomputes the QE constants
+per step). **Fix round 1 (validator F2):** the Heston default is now `max_dt = MAX_DT = 1/32` in `asian_averages`,
+`asian_mc`, `obs_steps` and `fixings`, as `autocall_mc` already had. It was `None`, i.e. one QE-M step per fixing
+period, against eq. (4). The validator measured this with quarterly fixings, GS and 3e6 paths: the one-step default
+minus Δ = 1/32 gave z = −2.6 / −3.6 / +5.9 at K = 90 / 100 / 110 (+1.3% at K = 110), and its own QE-M at Δ = 1/64
+agrees with 1/32. Under BSM `max_dt` is ignored (exact steps). `None` remains available for grids that are already
+fine (`barrier_mc` passes it explicitly). (ii) The CV (eq. 14) is **BSM only**. `asian_mc(kind="cv")` raises under Heston, because the Black V_G is
+not the Heston mean (§3.5). The Heston default is plain MC (H1); the shadow-BSM control H2 is not implemented
+(not needed by any gate). (iii) ĉ is the OLS fit on the same paths. Its O(1/N) bias is negligible (eq. 16), and
+VR̂ = s_Y²/s_e² = 1/(1 − ρ̂²) is reported from the same paths (tested to 1e-10). (iv) Gate grid as asian.md §5:
+σ ∈ {0.2, 0.5} × T ∈ {1, 3} × n ∈ {1, 12, 52} × K/F ∈ {0.8, 1, 1.2} plus the [FM08] curve, 39 comparisons.
+**Consequences (measured, `scripts/phase4_gates.py`, `scripts/exotics_figures.py`):** geometric MC vs KV max |z| 1.90.
+CV variance-reduction factor on [FM08] (σ = 0.178, n = 12): 1924 / 1608 / 612 at K = 90 / 100 / 110 (ρ̂ = 0.99974 /
+0.99969 / 0.99918). At the money with n = 12, T = 1: VR = 5793, 1416, 632, 211 for σ = 0.1, 0.2, 0.3, 0.5.
+
+## D-031 — Autocallable attribution (eq. 19): σ_ATM, term-structure model, exact no-call legs, CRN
+**Decision:** (i) V_BS uses the flat σ_ATM = the Heston implied vol at (K = F_0(T), T), so both models price the
+ATM-forward T-vanilla alike. Sensitivity rows: BS at σ_H(S_ref), at σ_H(B_p·S_ref), and at the market ATM vol (OTM
+quote IVs at the two strikes adjacent to F interpolated to k = 0, then total variance linear in T; n/a beyond the
+last expiry). (ii) V_TS is Black with Heston's expected variance w(t) (heston.md eq. 6). Term 1, V_TS − V_BS, is labelled
+"flat σ_ATM vs Heston expected-variance curve (level + term structure)" (fix round 1, validator F6; the note calls
+it "ATM term structure"). It has a level part, √(w(T)/T) vs σ_ATM (the vol-of-vol convexity of ATM implied vol), and
+a shape part. With v0 = θ, as in the illustrative GS set, w(t) = θt is flat, so term 1 is a pure level gap:
+√θ = 18.82% vs σ_ATM = 16.87%. (iii) V^nc_H and V^nc_TS are
+exact (eq. 11): Black, or Heston COS for the put and the digital D⁻ = ∂_k p. The digital is a central difference
+(h = 1e-4·k) on **one** self-checking COS call at [k − h, k, k + h], so the three strikes share (N, L) and the
+difference is the derivative of a single series. At ξ = 1e-4 it matches Black's digital to < 1e-6. The no-call legs
+are also re-priced on the MC paths as a 3SE check. (iv) CRN: one Heston QE-M path set (Δ ≤ 1/32); the BS and TS
+paths are driven by the period-aggregated Heston spot normals (eq. 15). Gap and term SEs come from per-path
+differences (eq. 16); par coupons and their gap use eq. (17).
+**Consequences (illustrative GS set, AC-Q):** V_BS 1.016721, V_TS 1.014575, V_H 1.002359. Gap −0.014362 (CRN SE
+0.000171) = flat σ_ATM vs expected-variance curve −0.002146 (0.000061; pure level here) + marginal smile −0.015971
+(exact) + path +0.003755 (0.000153).
+Par coupon 5.23% (BS) vs 7.55% (Heston), +2.32% (0.03%). The sign is the expected V_H < V_BS (§3.5).
+- The validator's exact Black values confirm V_BS (1.016654) and term 1 (−0.002110) within MC error.
+- The note's CRN σ-grid diagnostic for the full BS product (validator F7c) is printed by `autocall_compare.py` and by
+  the gate script. On AC-Q, V rises from σ = 0.10 to 0.15 (+0.00043, dV SE 0.00004) and then falls, so the full
+  product has no single vega sign (§3.4). The no-call sheet is strictly decreasing in σ (tested).

@@ -1,0 +1,118 @@
+Phase 4 gates (fixed seeds as in the tests; MC gates: |MC - ref| <= 3 SE)
+
+== Barrier (barrier.md; tests/test_barrier.py)
+  G1 in + out = vanilla, same paths (8 types, BSM+Heston, BB+disc) max 3.55e-15                       tol < 1e-12                PASS
+  G2 BB-MC vs RR, b=0.0, M=1 (14 cells, 2e5)                 max |z| 1.01; zeros exact True     tol |z| <= 3               PASS
+  G2 BB-MC vs RR, b=0.0, M=50 (14 cells, 2e5)                max |z| 1.70; zeros exact True     tol |z| <= 3               PASS
+  G2 BB-MC vs RR, b=0.04, M=1 (14 cells, 2e5)                max |z| 1.06; zeros exact True     tol |z| <= 3               PASS
+  G2 BB-MC vs RR, b=0.04, M=50 (14 cells, 2e5)               max |z| 1.99; zeros exact True     tol |z| <= 3               PASS
+  G2h Heston BB-MC xi=1e-4, rho=0 vs RR at sqrt(theta)       max |z| 2.97                       tol |z| <= 3               PASS
+    same path set, vanilla cp=+1: z -3.15 (diagnostic)
+    same path set, vanilla cp=-1: z +3.13 (diagnostic)
+  eq. (7) model-free cdo(K = H = 90) = 10 DF, FO set, QE-M + v^+ bridge; ONE seed per dt
+  (noisy; 25-seed pooled bias +0.095/+0.055/+0.020/+0.012 at dt = 1/32..1/256, D-028):
+    dt = 1/16   MC - 9.8 = +0.15942 (SE 0.02392, z +6.66), seed 20261149
+    dt = 1/32   MC - 9.8 = +0.04360 (SE 0.02402, z +1.81), seed 20261150
+    dt = 1/64   MC - 9.8 = +0.04778 (SE 0.02423, z +1.97), seed 20261151
+    dt = 1/128  MC - 9.8 = +0.01826 (SE 0.02433, z +0.75), seed 20261148
+  G2m Heston model-free cdo at dt = 1/128 (bias < gate SE)   z +0.75                            tol |z| <= 3               PASS
+  G3i RR (cont.) and BGK-shifted RR vs BGK Tables 2.1/2.2/2.6 max 4.97e-04                       tol <= 5e-4                PASS
+  discrete MC (exact steps at t_j) vs BGK True, and BGK-shifted RR vs discrete MC:
+    m=50  H=85   MC 6.3154 (SE 0.0204) True 6.322; BGK 6.3223: rel +0.11%, z +0.34
+    m=50  H=90   MC 6.0942 (SE 0.0205) True 6.098; BGK 6.0984: rel +0.07%, z +0.21
+    m=50  H=95   MC 4.9086 (SE 0.0200) True 4.907; BGK 4.9071: rel -0.03%, z -0.08
+    m=50  H=96   MC 4.4352 (SE 0.0195) True 4.427; BGK 4.4275: rel -0.17%, z -0.39
+    m=50  H=97   MC 3.8504 (SE 0.0188) True 3.834; BGK 3.8362: rel -0.37%, z -0.76
+    m=50  H=98   MC 3.1407 (SE 0.0175) True 3.126; BGK 3.1210: rel -0.63%, z -1.12
+    m=50  H=99   MC 2.3439 (SE 0.0157) True 2.337; BGK 2.2713: rel -3.10%, z -4.62
+    m=5   H=95   MC 5.6373 (SE 0.0203) True 5.671; BGK 5.6456: rel +0.15%, z +0.41
+    m=5   H=99   MC 4.4613 (SE 0.0196) True 4.489; BGK 4.0495: rel -9.23%, z -21.04
+    m=50  H=155  MC 12.9063 (SE 0.0270) True 12.894; BGK 12.9054: rel -0.01%, z -0.03
+    m=50  H=140  MC 10.5699 (SE 0.0231) True 10.551; BGK 10.5812: rel +0.11%, z +0.49
+    m=50  H=125  MC 4.6101 (SE 0.0145) True 4.616; BGK 4.6491: rel +0.85%, z +2.68
+    m=50  H=115  MC 0.8062 (SE 0.0055) True 0.807; BGK 0.8188: rel +1.56%, z +2.30
+  G3ii discrete MC vs BGK True (13 cells)                    max |d|/(3SE+1e-3) 0.54            tol <= 1                   PASS
+  Oracle Haug, 66 correctly rounded cells vs published       max s.25 4.96e-05, s.30 4.59e-05   tol <= 5e-5 (note)         PASS
+  Oracle Haug, 6 E1 cells vs golden (RRS = PDE)              max 3.46e-14                       tol <= 1e-10               PASS
+    all 72 cells vs golden value: max 4.80e-14
+  erratum E1 evidence: Haug sigma = 0.30 cells off by > 5e-5 vs RR and vs quadrature
+    out cp=+1 eta=-1 H=105 K=90: RR 2.63404195 quad 2.63404195 (|d| 1.4e-14) table 2.6341 RR-table -5.80e-05
+    out cp=-1 eta=-1 H=105 K=90: RR 4.22923747 quad 4.22923747 (|d| 1.2e-14) table 4.2293 RR-table -6.25e-05
+    out cp=-1 eta=-1 H=105 K=100: RR 5.80325201 quad 5.80325201 (|d| 4.4e-15) table 5.8032 RR-table +5.20e-05
+    out cp=-1 eta=-1 H=105 K=110: RR 7.56495741 quad 7.56495741 (|d| 3.2e-14) table 7.5649 RR-table +5.74e-05
+    in cp=-1 eta=+1 H=95 K=100: RR 7.79884553 quad 7.79884553 (|d| 2.7e-15) table 7.7989 RR-table -5.45e-05
+    in cp=-1 eta=+1 H=95 K=110: RR 13.30774690 quad 13.30774690 (|d| 7.1e-15) table 13.3078 RR-table -5.31e-05
+
+== Asian (asian.md; tests/test_asian.py)
+  G4 geometric-Asian MC vs Kemna-Vorst (39 cells, 2e5)       max |z| 1.90                       tol |z| <= 3               PASS
+  G4m mean G vs F_G, mean A vs Abar_F (13 path sets)         max |z| 1.45                       tol |z| <= 3               PASS
+  Oracle KV closed form vs [FM08] Table 4 (n = 12, 50, 250)  max 1.28e-04                       tol <= 3e-4                PASS
+  CV variance reduction (eq. 15), same paths as the CV price:
+    [FM08] n=12  K=90: CV 11.90422 (SE 4.7e-04) vs Table 6 11.90497; VR 1924, rho 0.999740, c 1.0197, SE plain 2.1e-02, N 2e5, seed 20261248
+    [FM08] n=12  K=100: CV 4.88132 (SE 3.8e-04) vs Table 6 4.8821; VR 1608, rho 0.999689, c 1.0357, SE plain 1.5e-02, N 2e5, seed 20261248
+    [FM08] n=12  K=110: CV 1.36292 (SE 3.4e-04) vs Table 6 1.36314; VR 612, rho 0.999183, c 1.0704, SE plain 8.3e-03, N 2e5, seed 20261248
+    [FM08] n=50  K=90: CV 11.93252 (SE 4.5e-04) vs Table 6 11.93301; VR 2147, rho 0.999767, c 1.0176, SE plain 2.1e-02, N 2e5, seed 20261249
+    [FM08] n=50  K=100: CV 4.93701 (SE 3.8e-04) vs Table 6 4.93736; VR 1684, rho 0.999703, c 1.0318, SE plain 1.5e-02, N 2e5, seed 20261249
+    [FM08] n=50  K=110: CV 1.40235 (SE 3.4e-04) vs Table 6 1.40264; VR 639, rho 0.999217, c 1.0616, SE plain 8.5e-03, N 2e5, seed 20261249
+    [FM08] n=250 K=90: CV 11.94091 (SE 4.5e-04) vs Table 6 11.94068; VR 2202, rho 0.999773, c 1.0172, SE plain 2.1e-02, N 2e5, seed 20261250
+    [FM08] n=250 K=100: CV 4.95215 (SE 3.7e-04) vs Table 6 4.95233; VR 1723, rho 0.999710, c 1.0311, SE plain 1.6e-02, N 2e5, seed 20261250
+    [FM08] n=250 K=110: CV 1.41346 (SE 3.3e-04) vs Table 6 1.41351; VR 667, rho 0.999250, c 1.0600, SE plain 8.6e-03, N 2e5, seed 20261250
+  Oracle CV MC vs [FM08] Table 6 (n = 12, 50, 250)           max (|d| - 3SE)/3e-4 -1.21         tol <= 1                   PASS
+  CV vs plain arithmetic, independent seeds (sigma 0.3, n 12) max |z| 0.77                       tol |z| <= 3               PASS
+    SE ratio plain/CV = [28.6, 24.8, 15.1] -> VR ~ [817.0, 617.0, 227.0] (independent seeds)
+  Heston QE-M geometric xi=1e-4 vs (10) at Sigma_Q           max |z| 0.55                       tol |z| <= 3               PASS
+
+== Autocallable (autocallable.md; tests/test_autocallable.py)
+  BS MC vs (11), (11) B_c=0, n=1, (12) m=0/1 (2e5)           max |z| 1.79                       tol |z| <= 3               PASS
+  Heston: mean M_t = 1, D^+_i(L) vs COS, no-call vs (11)+COS max |z| 1.32                       tol |z| <= 3               PASS
+  Heston xi=1e-4 vs BS(Sigma_Q), same draws (CRN)            |z| 0.18                           tol |z| <= 3               PASS
+
+  Model gap, eq. (19). Heston = HestonParams(kappa=1.3253, theta=0.0354, xi=0.3877, rho=-0.7165, v0=0.0354)
+  LABEL: illustrative, pre-calibration (GS: Gatheral 2006 Table 3.2 SPX fit, v0 := theta)
+== AC-Q: t = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
+   S_ref = 7374.4255, f_i = [1.00994, 1.0194, 1.02948, 1.03971, 1.05063, 1.06105]
+   DF_i = [0.98774, 0.97691, 0.96454, 0.95308, 0.93977, 0.92872]
+   sigma_ATM (Heston IV at F_0(T)) = 0.16865; sqrt(w(T)/T) = 0.18815
+   V_BS = 1.016721 (SE 0.000065); V^nc_BS: exact 1.040896, MC 1.040930 (SE 0.000065)
+   V_TS = 1.014575 (SE 0.000093); V^nc_TS: exact 1.037774, MC 1.037795 (SE 0.000101)
+   V_H  = 1.002359 (SE 0.000188); V^nc_H: exact 1.021802, MC 1.021789 (SE 0.000229)
+   gap V_H - V_BS = -0.014362 (CRN SE 0.000171)
+     term1 flat sigma_ATM vs Heston expected-variance curve (level + term structure): -0.002146 (CRN SE 0.000061)
+           (v0 = theta: w(t) = theta t is flat, so term1 is a pure level gap, sqrt(theta) 0.1881 vs sigma_ATM 0.1687)
+     term2 marginal smile at B_p, B_c (exact): -0.015971
+     term3 path: forward skew, vol-of-vol: +0.003755 (CRN SE 0.000153)
+   par coupon BS 0.05228 (SE 0.00010); first-call p_i [0.5289, 0.1297, 0.0652, 0.0409, 0.0284], not called 0.2069, life 0.6327 y
+   par coupon H  0.07547 (SE 0.00036); first-call p_i [0.592, 0.124, 0.0574, 0.0335, 0.0235], not called 0.1696, life 0.5704 y
+   par coupon H - BS +0.02319 (CRN SE 0.00032)
+   BS sensitivity: sigma_H(S_ref) 0.1802 -> 1.015565; sigma_H(B_p S_ref) 0.2654 -> 0.996034; market ATM n/a (no bracketing expiry / not run)
+
+   CRN sigma-grid (BS, full product; diagnostic): 0.10: 1.01730; 0.15: 1.01773 (dV SE 0.00004); 0.20: 1.01271 (dV SE 0.00010); 0.25: 1.00072 (dV SE 0.00015); 0.30: 0.98433 (dV SE 0.00016); 0.35: 0.96618 (dV SE 0.00016); 0.40: 0.94767 (dV SE 0.00016);
+  AC-Q (illustrative): eq. (19) adds up; V^nc paths vs (11)  |sum-gap| 0.0e+00; max|z| 0.53     tol 1e-12; |z| <= 3        PASS
+  AC-Q (illustrative GS): expected sign V_H < V_BS (§3.5)    gap -0.01436 (0.00017)             tol gap < -3 CRN SE        PASS
+== AC-A: t = [1.0, 2.0, 3.0] (beyond last expiry 1.61 y: carry, Heston extrapolated)
+   S_ref = 7374.4255, f_i = [1.03971, 1.08239, 1.12645]
+   DF_i = [0.95308, 0.90654, 0.86351]
+   sigma_ATM (Heston IV at F_0(T)) = 0.16902; sqrt(w(T)/T) = 0.18815
+   V_BS = 1.034036 (SE 0.000167); V^nc_BS: exact 1.063516, MC 1.063621 (SE 0.000181)
+   V_TS = 1.025874 (SE 0.000217); V^nc_TS: exact 1.052564, MC 1.052762 (SE 0.000237)
+   V_H  = 1.009398 (SE 0.000302); V^nc_H: exact 1.032306, MC 1.032411 (SE 0.000352)
+   gap V_H - V_BS = -0.024638 (CRN SE 0.000232)
+     term1 flat sigma_ATM vs Heston expected-variance curve (level + term structure): -0.008163 (CRN SE 0.000108)
+           (v0 = theta: w(t) = theta t is flat, so term1 is a pure level gap, sqrt(theta) 0.1881 vs sigma_ATM 0.1690)
+     term2 marginal smile at B_p, B_c (exact): -0.020257
+     term3 path: forward skew, vol-of-vol: +0.003782 (CRN SE 0.000212)
+   par coupon BS 0.05784 (SE 0.00010); first-call p_i [0.5578, 0.1365], not called 0.3057, life 1.7478 y
+   par coupon H  0.07297 (SE 0.00022); first-call p_i [0.6457, 0.115], not called 0.2393, life 1.5936 y
+   par coupon H - BS +0.01513 (CRN SE 0.00017)
+   BS sensitivity: sigma_H(S_ref) 0.1837 -> 1.027910; sigma_H(B_p S_ref) 0.2417 -> 0.995275; market ATM n/a (no bracketing expiry / not run)
+
+   CRN sigma-grid (BS, full product; diagnostic): 0.10: 1.04433; 0.15: 1.04008 (dV SE 0.00012); 0.20: 1.01997 (dV SE 0.00019); 0.25: 0.98996 (dV SE 0.00021); 0.30: 0.95633 (dV SE 0.00021); 0.35: 0.92251 (dV SE 0.00020); 0.40: 0.88936 (dV SE 0.00020);
+  AC-A (illustrative): eq. (19) adds up; V^nc paths vs (11)  |sum-gap| 0.0e+00; max|z| 0.84     tol 1e-12; |z| <= 3        PASS
+  AC-A (illustrative GS): expected sign V_H < V_BS (§3.5)    gap -0.02464 (0.00023)             tol gap < -3 CRN SE        PASS
+  ROADMAP: autocall BSM (ATM) vs CALIBRATED Heston           needs Phase 5 fit (D-029)          tol report                 DEFERRED (Phase 5)
+
+  Deng et al. Case 2 (diagnostic): qpricer MC 97.508 (SE 0.009), published 98.39 (z -100.6), validator exact 97.507 (z +0.09) -> published value NOT reproduced (OPEN_ISSUES)
+  first-call p_i vs Table 1: max |z| 2.11; p_i [0.3769, 0.1439, 0.078, 0.0503, 0.0363, 0.0274, 0.0219, 0.0177, 0.0146, 0.0126, 0.011, 0.0098]
+
+24 PASS, 0 FAIL, 1 DEFERRED (25 lines)
+  DEFERRED (Phase 5): ROADMAP: autocall BSM (ATM) vs CALIBRATED Heston
