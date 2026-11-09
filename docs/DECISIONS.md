@@ -623,3 +623,180 @@ Par coupon 5.23% (BS) vs 7.55% (Heston), +2.32% (0.03%). The sign is the expecte
 - The note's CRN σ-grid diagnostic for the full BS product (validator F7c) is printed by `autocall_compare.py` and by
   the gate script. On AC-Q, V rises from σ = 0.10 to 0.15 (+0.00043, dV SE 0.00004) and then falls, so the full
   product has no single vega sign (§3.4). The no-call sheet is strictly decreasing in σ (tested).
+
+## D-032 — Calibration targets, thinning and the Heston maturity window (calibration.md §2.2, note text "D-016")
+**Context:** 7625 OTM quotes; 18 of 39 expiries below 0.1 y, with 5-pt strikes. Heston's ATM skew is flat for
+T ≪ 1/κ (eq. 14), while the SPX skew keeps steepening; weekly T counts weekends as variance time (D-003).
+**Decision:** eqs. (5)–(7) and weights (8): in-band = IV status 0, mid ≥ 0.50, |d1(σ^m)| ≤ 1.6449; thinning to 25 d1
+targets per expiry, taken in order, each the nearest unused in-band quote, **plus** the put and the call nearest k = 0,
+so up to 27 quotes per expiry (the note's "≤ 525" counts only the 25 targets). Heston on T ≥ 0.1 (21 expiries), out of
+sample below; SABR on every expiry passing (7). Targets come from `build_surface()["surface"]` re-cut with the smoothed
+forwards (D-033), never from `otm`.
+**Alternatives:** all 39 expiries; T ≥ 2 weeks (33 expiries, run as a sensitivity); a 10Δ band; no thinning.
+**Consequences (measured, `scripts/run_calibration.py`):** 5806 in-band quotes, 1029 thinned (25–27 per expiry),
+n_H = 565 Heston residuals. The h_min = 0.1 vol-pt weight floor binds on 60.9% of the thinned quotes (the median IV
+half-width is 0.078 vol pt).
+
+## D-033 — Short-end DF from a parity-fitted zero curve (closes OPEN_ISSUES F5; note text "D-017")
+**Decision:** eqs. (2)–(3). WLS r̂(T) = a + bT on the 21 expiries with T ≥ 0.1, weights 1/(r_se² + (10 bp)²);
+D̃F = exp(−r̂T) for T < 0.1, parity DF kept for T ≥ 0.1; F̃ = K̄_u + ȳ_u/D̃F on the Phase 0 used pairs, which
+`calibration.parity_pairs` rebuilds and checks against the table (F and DF to 1e-10). The OTM cut and the static-arbitrage
+filter are re-run with F̃ (`data.select_otm`, `data.remove_static_arbitrage`), because a strike between F and F̃ changes type.
+**Alternatives:** external OIS curve (breaks D-001); curve DF on every expiry; flat r.
+**Consequences (measured):** r̂(T) = 4.527% + 0.304%·T. Short-end r moves from 2.64%–16.89% to 4.533%–4.556%, and the
+DF sequence becomes monotone below 0.1 y. |F̃ − F| ≤ 3.56 F_se (2026-12-03, +0.65 pt). The note estimated ≲ 1.5 F_se;
+four expiries exceed 2 F_se (11-18, 11-19, 12-02, 12-03: 2.21, 2.37, 2.82, 3.56). Every used pair stays inside its own
+band under (F̃, D̃F): max |res|/h is 0.834, and 0 pairs exceed 1. Eq. (3) at T ≥ 0.1 reproduces the parity F exactly.
+The re-cut surface is identical to the original, 7625 quotes and no type change, because no listed strike lies between
+F and F̃. At the 347 used strikes with T < 0.1, the median put/call IV split goes from 0.0275 to 0.0260 vol pt, and 0 → 0
+pairs exceed h_C + h_P. DF rises between consecutive expiries 4 times instead of 10, and none of them lies below 0.1 y
+(one is the step across T = 0.1).
+
+## D-034 — Heston objective, restricted bounds box, pinned COS (N, L) = (16384, 64) and its a-priori IV budget (note text "D-018"; orchestrator carry-forward 2)
+**Context:** the self-checking COS (D-017) is piecewise in p, which injects finite-difference noise into the Jacobian,
+so (N, L) must be frozen for the whole fit. The note's choice (N = 1024, L = 12) and its bounds box (11) were checked
+against Lewis first, on the real Heston grid (565 quotes, 21 expiries):
+- L = 12 at the plausible point (v0, κ, θ, ξ, ρ) = (0.03, 2, 0.04, 1, −0.7) gives an IV error of 9.9e-5. L = 18 gives 9.8e-7,
+  and (2048, 24) gives 9.9e-9.
+- At the 32 corners of box (11), Lewis's `quad_vec` fails at 4 corners (v0 = θ = 1e-4, ξ = 5). No fixed (N, L) up to
+  (4096, 30) is accurate. Examples: an IV error of 6e-2 at (1e-4, 1e-3, 1, 5, 0), and a price error of 3.8e-3 at
+  (1, 1e-3, ·, 5, −0.99).
+- The hard region is small v0 and θ, small κ (ν_F ≈ 0) and large ξ. X is then extremely leptokurtic: a spike plus heavy
+  tails. At (0.005, 1e-3, 0.005, 3, 0), COS needs L ≈ 80 and N = 16384 to match Lewis (1e-14 at (65536, 120)). Lewis is
+  the correct reference there, and the self-checking COS warns "not converged".
+**Budget (stated before the production fit and the synthetic gates):** a **price error in market-vega units**,
+e_vega = max_i |v_COS,i − v_Lewis,i| / 𝒱_i ≤ 1e-5. It is not a claim of IV accuracy over the box (fix round 1, M3).
+with 𝒱_i the normalised vega at the target vol. This is the first-order IV error at the market vol, the scale of
+fallback (9), and it is defined even where the model IV does not exist. 1e-5 = 0.001 vol pt is 37x below the smallest
+quote IV half-width (0.0375 vol pt), 100x below h_min and 300x below the 0.3 vol-pt synthetic noise. It is checked on
+I_H at the 32 corners of the bounds box and at 128 scrambled Sobol points (seed 20261109; log-uniform in v0, κ, θ, ξ,
+uniform in ρ). The direct |σ_COS − σ_Lewis| is printed alongside where both inversions succeed. After each fit, the
+note's §5 oracle |σ_COS − σ_Lewis| ≤ 1e-5 is re-checked at p̂.
+**Decision:**
+- **Bounds:** v0, θ ∈ [0.01, 0.25] (10%–50% vol); κ ∈ [0.5, 20]; ξ ∈ [0.01, 3]; ρ ∈ [−0.99, 0]. The note had
+  v0, θ ∈ [1e-4, 1], κ ∈ [1e-3, 20], ξ ∈ [0.01, 5]. κ ≥ 0.5 is also the edge of the identifiable region of eq. (13):
+  κ·T_max = 0.8 on T_max = 1.61.
+- **Pinned COS:** global (N, L) = (16384, 64), the smallest rung measured that meets the budget at every corner.
+  Corner maxima: (8192, 48) 3.7e-5 and (16384, 80) 2.0e-5 fail; (16384, 64) gives 9.2e-6, worst corner
+  (0.01, 0.5, 0.01, 3, −0.99).
+- **Why not per expiry:** pinning (N, L) per expiry was measured and rejected. Long expiries need the most terms:
+  T = 1.61 gives 3.7e-5 at (8192, 48). Only T ≤ 0.19 passes at (8192, 56), so per-expiry pins would save under 10% of the
+  cost.
+- **Start box (11), adapted to the bounds:** √v0, √θ ∈ [0.10, 0.40] (note: [0.08, 0.40], whose lower edge lies below
+  v0 = 0.01), ln κ ∈ [ln 0.5, ln 8], ln ξ ∈ [ln 0.2, ln 3], ρ ∈ [−0.95, −0.2]. 16 starts.
+- **Objective and solver:** IV residuals (8) with fallback (9); TRF settings (12): `diff_step = 1e-6`, `x_scale = 'jac'`,
+  ftol = xtol = gtol = 1e-10. Feller is reported, never imposed.
+**Disclosure and audit:** before these bounds were fixed, one pilot fit was run on the note's box at (2048, 24) from
+4 starts. It found an interior optimum near (0.052, 4.6, 0.053, 1.65, −0.75), far from every restricted edge. No gate
+tolerance depends on the bounds except pre-check (18), which uses them.
+- The pilot is now re-runnable (fix round 1, M2): `scripts/run_calibration.py --box note`, output saved in
+  `report/calibration_notebox_20261106_2213.{txt,csv}`.
+- That run refits on the note's original box (11) with the same pinned COS, from the note's 16 Sobol starts
+  (√v ∈ [0.08, 0.40], κ ∈ [0.3, 8]) plus 4 adversarial corner starts. **20/20** starts reach the production p̂
+  (max |Δp| 1.9e-5 SE, cost relative −4.7e-15). COS vs Lewis agrees to ≤ 4.9e-13 at every endpoint.
+- The production p̂ is **≥ 38 SE inside the narrowed bounds**: 111, 38.1, 169, 55.7 and 136 SE for v0, κ, θ, ξ, ρ.
+- The validator independently found the same: 20/20 starts, ≥ 38 SE (`docs/validation/phase5.md`).
+- So the narrowing biases no reported fit.
+**Measured on the box (`scripts/phase5_gates.py`):** price error in market-vega units e_vega = 9.21e-6 ≤ 1e-5, worst at
+the corner (0.01, 0.5, 0.01, 3, −0.99). The direct model-IV error at that worst-budget corner is 2.5e-3 (validator
+reproduced it). Over the whole box it reaches 6.4e-3, but only at ξ = 3, ρ = −0.99 corners and only on
+OTM calls. There the model IV is 2–5% against a market 13–15%, so the model vega is 1e-4 to 1e-11 of the market vega:
+an absolute price error of 1e-15–1e-7 becomes a large IV error, on a residual that is itself about 10 vol pts.
+This is why the budget is stated with the market vega. The IV accuracy that matters is the one at the optimum.
+After the fit, COS and Lewis agree to 4.9e-13 in IV at p̂ on I_H, to ≤ 4.9e-13 at every one of the 16 start endpoints,
+and to 7.0e-13 on the 464 out-of-sample quotes (`scripts/run_calibration.py`).
+**Cost:** 87 ms per residual evaluation (COS 99%). One 16-start fit takes about 30 s on 8 worker processes
+(`fit_heston(..., workers=8)`; deterministic per start, so the result does not depend on the number of workers).
+**Alternatives:** Lewis inside the optimiser (about 0.17 s per evaluation, 2x slower, and `quad_vec` fails at box
+corners); the note's box with a looser budget (the IV error reaches 1e-2 there); reparametrisation (excluded by the note).
+
+## D-035 — Synthetic round-trip gate: tolerances and seeds fixed before any noisy fit (eqs. 16–20)
+**Decision:** grid = the real I_H (k_i, T_j, w_i; 565 quotes); data labelled `synthetic`, σ^obs = σ^H(p*) + ε with
+σ_ε = 0.003, COS at the pinned (16384, 64) for both data and model. Seeds: S1 `default_rng(20261107)`,
+S2 `default_rng(20261108)`, SABR expiry j (0..3, in the order of eq. 20) `default_rng(20261117 + j)`, and the slow 64-seed
+linearisation test `default_rng(20261207 + s)`, s = 0..63. They are never changed after a result is seen.
+**False-fail rate of the whole synthetic suite (fix round 1, M4).** The union bound is:
+- 2 Heston G2: 2 × (1 − 0.9973⁵ + 0.001) ≈ 2.9%;
+- 4 SABR G2: 4 × (1 − 0.9973³ + 0.001) ≈ 3.6%;
+- 6 G4b at 0.27% each: 1.6%;
+- total about **8%**; with the 64-seed linearisation test (5 ratios at 3σ, about 1.3%), about 9.5%.
+The note's 2.9% covers only the two Heston G2 gates.
+**Pre-check (18), computed from eq. (17) (central differences, step 1e-5|p_j|) before any noisy fit:**
+- S1 (GS, v0 = θ = 0.0354, κ = 1.3253, ξ = 0.3877, ρ = −0.7165): SE (v0, κ, θ, ξ, ρ) = (1.269e-4, 4.959e-2, 2.947e-4,
+  4.435e-3, 4.432e-3). 3SE/|p| = (0.011, 0.112, 0.025, 0.034, 0.019). Inside the bounds. PASS.
+- S2 (0.015, 3, 0.04, 0.4, −0.7): SE = (1.632e-4, 9.416e-2, 3.283e-4, 6.555e-3, 6.989e-3).
+  3SE/|p| = (0.033, 0.094, 0.025, 0.049, 0.030). PASS.
+- SABR (α, ρ, ν) SEs on the real I_j:
+  - 2026-11-13 (26 quotes): (9.9e-4, 6.22e-2, 1.577e-1), 3SE/|q| ≤ 0.266;
+  - 2026-12-18 (26): (1.06e-3, 4.19e-2, 5.92e-2), ≤ 0.179;
+  - 2027-05-21 (27): (1.09e-3, 3.11e-2, 2.66e-2), ≤ 0.133;
+  - 2028-06-16 (27): (1.22e-3, 2.78e-2, 1.72e-2), ≤ 0.119.
+  All PASS.
+**Gates (19)–(20), as the note states them:** G1 noise-free, 16 starts (SABR: seed + Sobol starts), ftol = xtol = gtol =
+1e-14, max|p̂/p* − 1| ≤ 1e-6 (SABR 1e-8). G2: |δp_j| ≤ 3 SE_j for every j, and D² ≤ χ²_5(0.999) = 20.515 (SABR χ²_3(0.999)
+= 16.266). G3: cost(p̂) ≤ cost(p*). G4: RMSE(p*) = RMS(ε) to 1e-12, and |RMSE(p̂) − σ_ε√((n−m)/n)| ≤ 3σ_ε/√(2n).
+**Linearisation test (slow; note §5):** on S1, 64 noise seeds, each fitted from a single start at p*. This tests the
+sampling distribution of the estimator; G1 and G2 already test the multi-start. Pass: sd(p̂_j)/SE_j ∈ [0.73, 1.27].
+
+## D-036 — SABR per expiry: native (α, ρ, ν) loss, F6 handled by restricting the start set, ν²T flag
+**Context:** Phase 3 F6: `alpha_from_atm` (eq. 9) has no positive root for ρ < 0 when σ_ATM > b²/(4|a|). Also, Hagan is
+NaN where 1 + c1T ≤ 0 (sabr.md 22).
+**Decision:**
+- The loss (15) is in native (α, ρ, ν) with bounds sabr.md (11), so eq. (9) never appears inside it. NaN from
+  1 + c1T ≤ 0 at a trial point is rejected by TRF (scipy `trf.py` shrinks the radius on non-finite residuals).
+  The optimum is asserted finite.
+- Eq. (9) is used only for the starts: the seed (10), with α = s0 inside the ν0 formula and ν_min = 0.1 (the lower
+  Sobol edge), and 4 Sobol points (ρ ∈ [−0.95, 0.3], ln ν ∈ [ln 0.1, ln 4], seed 20261109).
+- A start whose (9) has no positive root, or whose smile is non-finite, is dropped and counted (restriction, not penalty).
+- ν²T is reported per expiry and flagged above 0.16, the Hagan-vs-MC validated domain (Phase 3 F3, D-023).
+**Consequences (measured):** 0 starts dropped on all 39 expiries. **Every** fitted expiry has ν²T > 0.16 (0.35–0.89),
+so every SABR smile in this report is a Hagan parametrisation outside its validated domain. At SPX-like ν ≈ 1 the
+expansion is known to be off by +0.4 to +0.8 vol pt in the left wing at k = −0.2 (Phase 3).
+
+## D-037 — Start design, sensitivity runs and the objective-(10) cross-check
+**Decision:**
+- **Starts:** the 16 Heston starts are `qmc.Sobol(d=5, scramble=True, rng=default_rng(20261109)).random_base2(4)`,
+  mapped to the D-034 start box. They are data-independent and shared by the real fit, S1, S2 and the sensitivity runs.
+- **Sensitivity runs** (from the same 16 starts): n_t = 50, and T ≥ 2 weeks (33 expiries). Δp is reported in units of
+  the main fit's SE.
+- **Objective (10)** (vega-scaled price residuals) is run from the same starts on S1 (noisy) and on real data;
+  §5 asks for p̂^(10) within 1 SE of p̂.
+- **SE meaning:** on real data the SEs are curvature SEs scaled by s² = 2·cost/(n − 5). They are conditional on the
+  model and window and say nothing about misspecification.
+  - **They understate the window and model risk by about an order of magnitude** (fix round 1, M6): moving the window
+    to T ≥ 2 weeks shifts κ by +13.0 SE and ξ by +12.9 SE.
+  - Parameter uncertainty is therefore quoted as the sensitivity range. `scripts/run_calibration.py` prints it next to
+    the SEs: κ ∈ [4.49, 5.96] against SE 0.107, and ξ ∈ [1.62, 1.96] against SE 0.024.
+**Consequences (measured, `scripts/run_calibration.py`):**
+- **Real fit:** p̂ = (v0, κ, θ, ξ, ρ) = (0.052372, 4.5751, 0.052925, 1.6477, −0.75180), SE (0.00038, 0.107, 0.00025,
+  0.024, 0.0017). cost 2062.90, s² = 7.37, ν_F = 0.178 (Feller violated), cond(J·diag|p̂|) = 25.6.
+- **Starts:** 16/16 converge to one minimum, basin spread 1.1e-5 SE.
+- **Sensitivity runs:** n_t = 50 moves p by at most 1.06 SE. The T ≥ 2-week fit moves κ and ξ by +13.0 and +12.9 SE
+  (κ = 5.96, ξ = 1.96): the short end pulls Heston towards faster mean reversion and higher vol-of-vol (eq. 14).
+  This is misspecification, not noise, and the curvature SEs do not cover it.
+- **Objective (10):** within 0.83 SE of p̂ on real data.
+
+## D-038 — Phase 4 ROADMAP gate closed with the calibrated Heston set
+**Decision:** `scripts/run_calibration.py` writes `data/processed/heston_fit_20261106_2213.json` (p̂, SE, cost,
+provenance). `scripts/autocall_compare.py --heston-params <json>` writes
+`report/figures/autocall_attribution_heston_fit_20261106_2213.{csv,png}`; the `_illustrative` files are untouched.
+The DEFERRED line of `scripts/phase4_gates.py` becomes two lines per sheet (`calibrated()`):
+- the gap and its eq. (19) terms, reported;
+- (fix round 1, M1) the BS and TS legs on the attribution's CRN paths, restricted to the sheet's first two dates,
+  against the exact eq. (12) within 3 SE, and the no-call MC legs against (11) within 3 SE.
+Eq. (19) additivity holds by construction (term3 is the residual), so it is not gated.
+The BSM leg is labelled everywhere as **"BSM at the calibrated-Heston ATM vol (18.85%)"** (AC-Q; 19.72% on AC-A):
+in the CSV column `bs_leg`, the figure, stdout and the gate lines (M9). An extra row prices V_BS at the market ATM
+vol. `autocall_compare.py` is unchanged. In particular, S_ref and
+F_0(t_i) still come from the Phase 0 parity table (`market_20261106_2213.csv`), see OPEN_ISSUES.
+**Consequences (200k paths, seed 20261308):**
+- **AC-Q:** V_BS 1.014530, V_H 0.995842, gap −0.018688 (CRN SE 0.000217). Attribution:
+  - term1 (flat σ_ATM = 18.85% vs the Heston expected-variance curve, √(w/T) = 22.99%): −0.008206 (0.000120);
+  - term2 (marginal smile, exact): −0.020445;
+  - term3 (path: forward skew, vol-of-vol): +0.009963 (0.000216).
+  - Par coupon 5.60% (BS) vs 8.93% (H), +3.33% (0.05%).
+  - Extra row: V_BS at the market ATM vol (18.29%) = 1.015253, i.e. +0.000723 above the BS leg (about 3.3 CRN SE of
+    the gap). V_H minus it is −0.019411.
+  - Exact checks: max |z| 0.20 (2-date legs) and 0.87 (no-call).
+- **AC-A** (extrapolated beyond 1.61 y): gap −0.025137 (0.000342) = −0.018722 − 0.014800 + 0.008386. Exact checks:
+  max |z| 0.72 (2-date legs) and 1.19 (no-call).

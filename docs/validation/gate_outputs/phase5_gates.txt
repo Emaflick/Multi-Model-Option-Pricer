@@ -1,0 +1,67 @@
+Phase 5 gates (seeds and sets of tests/test_calibration.py; COS (16384, 64.0))
+
+== Pinned COS (N, L) = (16384, 64.0) vs Lewis over the bounds box (D-034)
+   budget metric: price error in market-vega units, max |v_COS - v_Lewis| / vega(sigma^m)
+  bounds [[0.01, 0.5, 0.01, 0.01, -0.99], [0.25, 20.0, 0.25, 3.0, 0.0]]; worst point [0.01, 0.5, 0.01, 3, -0.99]
+  box: price error in market-vega units (160 points)       9.21e-06 (corners 9.21e-06)                  tol <= 1e-05 (a priori)        PASS
+  (not an IV-accuracy claim: the direct model-IV error |sigma_COS - sigma_Lewis| is 2.48e-03 at the worst-budget corner and 6.41e-03 over the box, where the model vega is 1e-4..1e-11 of the market vega (D-034); COS eq.-13 warnings 66)
+
+== F5 closure and target identities (eqs. 1-3, §5)
+  eq. (3) returns F, DF unchanged for T >= 0.1             max |F~/F - 1| 0.0e+00                       tol 1e-12                      PASS
+  WLS (2) recovers a linear r(T) exactly                   6.9e-18                                      tol 1e-14                      PASS
+  used pairs inside their band under (F~, DF~)             max |res|/h 0.834; n > 1: 0                  tol <= 1 (D-005 rule)          PASS
+  (DF rises between consecutive expiries: 10 -> 4; max |F~ - F|/F_se 3.56)
+  Black(sigma^m) reproduces V^m (7625 quotes)              max rel 3.9e-13                              tol 1e-12                      PASS
+
+== Heston synthetic round trip (`synthetic` data, 0.3 vol-pt noise; D-035)
+  S1 pre-check (18): +-3SE in bounds, 3SE <= 0.5|p|        3SE/|p| max 0.112                            tol inside; <= 0.5             PASS
+  S1 G1 noise-free, 16 starts, tol 1e-14                   max |p^/p* - 1| 4.1e-14                      tol 1e-6                       PASS
+  S1 p^ = [0.03554, 1.32570, 0.03518, 0.39021, -0.71484], SE [1.27e-04, 4.96e-02, 2.95e-04, 4.44e-03, 4.43e-03]
+  S1 G2 |p^ - p*| <= 3 SE (v0, kappa, theta, xi, rho)      z [1.10, 0.01, -0.74, 0.57, 0.37]            tol 3                          PASS
+  S1 G2 D^2 = dp' Sigma^-1 dp                              2.516                                        tol chi2_5(0.999) 20.52        PASS
+  S1 G3 cost(p^) <= cost(p*)                               2202.0173 vs 2212.3325                       tol <=                         PASS
+  S1 G4 RMSE(p*) = RMS(eps)                                4.3e-19                                      tol 1e-12                      PASS
+  S1 G4 RMSE(p^) - sigma_eps sqrt((n-5)/n)                 -0.992e-4                                    tol |.| <= 2.677e-4            PASS
+  (S1: converged 16/16, basin 16/16)
+  S1 objective (10) vs (8), same starts: |dp|/SE           [-0.25, -0.01, -0.10, -0.40, -0.48]          tol <= 1 (§5)                  PASS
+  S2 pre-check (18): +-3SE in bounds, 3SE <= 0.5|p|        3SE/|p| max 0.094                            tol inside; <= 0.5             PASS
+  S2 G1 noise-free, 16 starts, tol 1e-14                   max |p^/p* - 1| 2.1e-14                      tol 1e-6                       PASS
+  S2 p^ = [0.01528, 2.81723, 0.04080, 0.39276, -0.70141], SE [1.63e-04, 9.42e-02, 3.28e-04, 6.56e-03, 6.99e-03]
+  S2 G2 |p^ - p*| <= 3 SE (v0, kappa, theta, xi, rho)      z [1.70, -1.94, 2.42, -1.10, -0.20]          tol 3                          PASS
+  S2 G2 D^2 = dp' Sigma^-1 dp                              12.491                                       tol chi2_5(0.999) 20.52        PASS
+  S2 G3 cost(p^) <= cost(p*)                               2327.5196 vs 2370.9710                       tol <=                         PASS
+  S2 G4 RMSE(p*) = RMS(eps)                                8.7e-19                                      tol 1e-12                      PASS
+  S2 G4 RMSE(p^) - sigma_eps sqrt((n-5)/n)                 -0.420e-4                                    tol |.| <= 2.677e-4            PASS
+  (S2: converged 16/16, basin 16/16)
+  S1 linearisation, 64 seeds: sd(p^_j)/SE_j                [1.10, 1.20, 0.98, 1.13, 1.00]               tol [0.73, 1.27]               PASS
+  (mean bias in units of SE/sqrt(64): [0.80, 1.55, -0.44, 1.12, 0.19]; 73 s)
+
+== SABR synthetic round trip, eq. (20) (`synthetic`, 0.3 vol-pt noise)
+  SABR 2026-11-13 q* [0.15, -0.70, 2.00]: pre, G1-G4       G1 7e-16 z [-0.1, -0.4, -0.1] D2 1.08        tol 1e-8; 3; 16.27             PASS
+    3SE/|q| max 0.266; G3 True; G4 plumbing 4e-19, RMSE dev +5.50e-4 (tol 12.48e-4); starts dropped (F6) 0
+  SABR 2026-12-18 q* [0.15, -0.70, 1.20]: pre, G1-G4       G1 4e-16 z [-1.4, 0.4, 0.4] D2 3.82          tol 1e-8; 3; 16.27             PASS
+    3SE/|q| max 0.179; G3 True; G4 plumbing 1e-18, RMSE dev +3.46e-4 (tol 12.48e-4); starts dropped (F6) 0
+  SABR 2027-05-21 q* [0.17, -0.70, 0.70]: pre, G1-G4       G1 2e-16 z [-1.7, 1.9, 1.1] D2 5.41          tol 1e-8; 3; 16.27             PASS
+    3SE/|q| max 0.133; G3 True; G4 plumbing 2e-18, RMSE dev +0.81e-4 (tol 12.25e-4); starts dropped (F6) 0
+  SABR 2028-06-16 q* [0.19, -0.70, 0.45]: pre, G1-G4       G1 1e-15 z [-0.4, 0.9, 1.6] D2 4.21          tol 1e-8; 3; 16.27             PASS
+    3SE/|q| max 0.119; G3 True; G4 plumbing 2e-18, RMSE dev -3.83e-4 (tol 12.25e-4); starts dropped (F6) 0
+  SABR fitted to S1 Heston smiles (39 expiries): RMSE 0.010 vol pt (T = 0.019) .. 0.123 (T = 1.61), max 0.184; Spearman(T, RMSE) 0.90
+  diagnostic §5: SABR-on-Heston RMSE grows with T          Spearman 0.90                                tol > 0 (qualitative)          PASS
+
+== Real-data fit (ROADMAP: completes, RMSE table, no NaN)
+  Heston multi-start: converged starts                     16/16 (basin 16)                             tol >= 8                       PASS
+  fallbacks (9) at the optimum; residuals finite           0; finite True                               tol 0; True                    PASS
+  post-fit COS vs Lewis IV agreement at p^ on I_H          max |dsigma| 4.9e-13                         tol 1e-5 (§5)                  PASS
+  real objective (10) vs (8): |dp|/SE (curvature SE)       [-0.83, -0.46, 0.15, -0.79, -0.79]           tol <= 1 (§5)                  PASS
+  RMSE table: 39 expiries, no NaN; JSON p^ = this fit      rows 39, NaN 0; rel 0.0e+00                  tol 39, 0; 1e-8                PASS
+  Heston in-sample: 21 expiries, RMSE 0.151-0.766 vol pt (median 0.253)
+  Heston out-of-sample: 18 expiries, RMSE 0.832-2.093 vol pt (median 1.299)
+
+== No-arbitrage checks: size and power (§5), market surface (eqs. 21-23)
+  flat-vol Black surface: mid violations (cal + bfly)      0                                            tol 0                          PASS
+  real surface: same-type adjacent strict butterflies      0                                            tol 0 (validator A1)           PASS
+  market: calendar 11054 points, mid 0, strict 0; butterfly 7547 triples, mid 2126, strict 0, max z 0.427
+  bump +3h flagged; swapped smiles flagged                 test assertions                              tol as in test                 PASS
+  S1 Heston surface: 0 strict (calendar, butterfly)        test assertions                              tol as in test                 PASS
+
+35 PASS, 0 FAIL (35 lines, 432 s)

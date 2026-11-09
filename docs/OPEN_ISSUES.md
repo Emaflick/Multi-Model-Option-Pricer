@@ -13,6 +13,19 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   (Figures from docs/validation/phase0.md and data/processed/market_20261106_2213.csv.)
   **Next step (Phase 5):** replace the T < 0.1 parity DFs with a smooth or monotone DF(T) fitted to the
   identified long end (or an OIS curve) before IV inversion. Record the choice in DECISIONS.md.
+  **Resolved 2026-11-09 (Phase 5, D-033; calibration.md eqs. 2–3; numbers from `scripts/run_calibration.py`,
+  `report/calibration_f5_20261106_2213.csv`).**
+  - WLS zero curve on the 21 expiries with T ≥ 0.1: r̂(T) = 4.527% + 0.304%·T.
+  - Short-end r goes from 2.64%–16.89% to 4.533%–4.556%. DF rises between consecutive kept expiries 4 times
+    instead of 10. Three of the remaining rises lie inside T ≥ 0.1, where the parity DFs are kept by design:
+    02-19 → 02-26, 06-30 → 07-16 and 09-30 → 10-15. The fourth is the step across T = 0.1 that the note
+    anticipates: 2026-12-11 (curve DF 0.99565) → 2026-12-18 (parity DF 0.99609). Below 0.1 y the DF sequence
+    is monotone.
+  - F refit at fixed D̃F: max |F̃ − F|/F_se = 3.56 (2026-12-03, +0.654 pt). Every used pair stays inside its own
+    band: max |res|/h = 0.834, 0 pairs above 1.
+  - Put/call IV split at the 347 used strikes with T < 0.1: median |σ_C − σ_P| 0.0275 → 0.0260 vol pt; pairs with
+    |σ_C − σ_P| > h_C + h_P: 0 → 0.
+  - The re-cut OTM surface is identical: 7625 quotes, no strike changes type.
 
 - **Phase 1 · IV from deep-ITM quotes beyond |z| ≈ 3 (minor, deferred; validator finding F3, not a
   failed gate)**
@@ -78,9 +91,15 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   b²/(4|a|) on the ATM vol. For example, at ρ = −0.9, ν = 5, T = 2 the ceiling is 0.12%, which lies inside plausible
   calibration bounds. A per-expiry SABR loss must treat these NaNs, either as a penalty or by restricting the bounds.
   Where b < 0 < a the round-trip is 4.6e-14, not 1e-14 (cosmetic).
+  **Resolved 2026-11-09 (Phase 5, D-036):** the SABR loss uses native (α, ρ, ν), so eq. (9) is used only for the
+  starts. Starts without a positive root are dropped and counted: 0 of 195 on the 39 expiries.
 - **Phase 3 · F3, carry to Phase 7 (scope).** The Hagan-vs-MC gate holds on set G with ν²T ≤ 0.16. At SPX-like ν ≈ 1,
   Hagan is off by +0.40 vol pt (T = 0.5) and +0.82 vol pt (T = 1) at k = −0.2. That is an expansion error, not a code
   error, and the report must state this domain.
+  **Phase 5 update:** every one of the 39 per-expiry SABR fits has ν²T > 0.16 (0.352–0.890; ν from 4.30 at
+  T = 0.019 to 0.69 at T = 1.61), so every fitted SABR smile is outside the validated domain
+  (`report/calibration_expiry_20261106_2213.csv`). The report must present them as Hagan parametrisations,
+  not as SABR dynamics.
 - **Phase 4 · autocallable BSM-vs-Heston gap is illustrative until Phase 5 (deferred; no gate failed).** The ROADMAP
   asks for BSM vs *calibrated* Heston. Calibrated parameters do not exist yet, so `scripts/autocall_compare.py` runs on the
   GS set (Gatheral 2006 Table 3.2 SPX fit, v0 := θ; D-029). Every output is labelled "illustrative, pre-calibration" and
@@ -89,6 +108,18 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   report. **Next step (Phase 5):** write the fitted parameters to JSON, run
   `scripts/autocall_compare.py --heston-params <fit>.json`, and use only that output (tag = JSON stem) in the report. AC-A
   (3 y) stays an extrapolation beyond the last kept expiry (1.61 y) in carry and in Heston.
+  **Resolved 2026-11-09 (Phase 5, D-038):** the gate is now run with the calibrated set
+  (`data/processed/heston_fit_20261106_2213.json`; `report/figures/autocall_attribution_heston_fit_20261106_2213.csv`).
+  AC-Q: V_H − V_BS = −0.018688 (CRN SE 0.000217) = −0.008206 (flat σ_ATM vs expected-variance curve) − 0.020445
+  (marginal smile, exact) + 0.009963 (path). AC-A: −0.025137 (0.000342) = −0.018722 − 0.014800 + 0.008386. Both gate
+  lines PASS in `scripts/phase4_gates.py` (`calibrated()`).
+- **Phase 5 · S_ref still uses the first expiry's parity DF (minor; no gate affected).** `autocall_compare.market_inputs`
+  sets S_ref = F·DF at T = 0.019 from `market_20261106_2213.csv`, i.e. the F5-biased parity DF 0.998395. Under the
+  smoothed curve (D-033), F̃·D̃F = 7379.918 instead of 7374.425, i.e. +0.074%
+  (`report/calibration_f5_20261106_2213.csv`, first row). The AC dates (≥ 0.25 y) interpolate only between T ≥ 0.1
+  expiries, so F_0(t_i) and DF(t_i) are unaffected; only the reference level, and hence every barrier relative to
+  the forwards, moves by 0.074%. **Next step:** let `market_inputs` take the smoothed table, or define S_ref from
+  the curve DF; this needs a Phase 4 D-entry, and the autocall numbers must be re-run.
 - **Phase 4 · Deng–Mallett–McCann (2011) Case 2 published value not reproduced (oracle issue; autocallable.md §5, not a
   gate; validator F7b).** Inputs as the note maps them:
   - monthly t_i = i/12;

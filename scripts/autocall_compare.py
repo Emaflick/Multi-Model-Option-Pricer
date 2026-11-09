@@ -180,11 +180,12 @@ def main(argv=None) -> int:
         if np.isfinite(s_mkt):
             x = gbm_paths(s_mkt**2 * np.asarray(sheet.t), r["_z"])
             v_mkt = float(autocall_pv(f[:, None] * np.exp(x), sheet, DF).mean())
-        report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt)
+        report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt, label)
         sigma_grid(sheet, f, DF, r["_z"])
         keep = {csv_name(k): v for k, v in r.items() if not k.startswith(("_", "p_call"))}
-        rows.append({"sheet": name, "label": label, **keep, "sigma_mkt_atm": s_mkt})
-        rows[-1]["V_BS_at_mkt_atm"] = v_mkt
+        rows.append({"sheet": name, "label": label, "bs_leg": bs_leg(r, label), **keep})
+        rows[-1] |= {"sigma_mkt_atm": s_mkt, "V_BS_at_mkt_atm": v_mkt}
+        rows[-1]["gap_H_minus_BS_at_mkt_atm"] = r["V_H"] - v_mkt
         raw.append({"sheet": name, **r})
     OUT.mkdir(parents=True, exist_ok=True)
     with open(OUT / f"autocall_attribution_{tag}.csv", "w", newline="") as fh:
@@ -194,6 +195,12 @@ def main(argv=None) -> int:
     figure(raw, label, OUT / f"autocall_attribution_{tag}.png")
     print(f"wrote {OUT / f'autocall_attribution_{tag}.csv'} and .png")
     return 0
+
+
+def bs_leg(r: dict, label: str) -> str:
+    """Label of the BSM leg (D-031, D-038): flat vol = the Heston set's own ATM implied vol."""
+    who = "calibrated-Heston" if label.startswith("calibrated") else "illustrative-Heston"
+    return f"BSM at the {who} ATM vol ({100 * r['sigma_atm']:.2f}%)"
 
 
 def csv_name(key: str) -> str:
@@ -217,7 +224,7 @@ def sigma_grid(sheet, f, DF, z, sigmas=(0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40
     return out
 
 
-def report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt) -> None:
+def report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt, label: str = "") -> None:
     """Print one sheet's block: inputs, values, eq. (19) terms, par coupons, call probabilities."""
     ext = " (beyond last expiry 1.61 y: carry, Heston extrapolated)" if sheet.t[-1] > 1.61 else ""
     print(f"== {name}: t = {np.round(sheet.t, 4).tolist()}{ext}")
@@ -225,6 +232,7 @@ def report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt) -> None:
     print(f"   DF_i = {np.round(DF, 5).tolist()}")
     print(f"   sigma_ATM (Heston IV at F_0(T)) = {r['sigma_atm']:.5f}", end="")
     print(f"; sqrt(w(T)/T) = {r['sqrt_wT_over_T']:.5f}")
+    print(f"   BS leg: {bs_leg(r, label)}")
     for k in ("BS", "TS", "H"):
         print(f"   V_{k:<2} = {r[f'V_{k}']:.6f} (SE {r[f'se_V_{k}']:.6f});", end="")
         print(f" V^nc_{k}: exact {r[f'nc_{k}']:.6f}, MC {r[f'nc_mc_{k}']:.6f}", end="")
@@ -253,7 +261,13 @@ def report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt) -> None:
         if np.isfinite(s_mkt)
         else "n/a (no bracketing expiry / not run)"
     )
-    print(f" market ATM {mkt}\n")
+    print(f" market ATM {mkt}")
+    if np.isfinite(v_mkt):
+        print(
+            f"   extra row: V_BS at the market ATM vol {s_mkt:.4f} = {v_mkt:.6f} "
+            f"({v_mkt - r['V_BS']:+.6f} vs the BS leg; V_H minus it {r['V_H'] - v_mkt:+.6f})"
+        )
+    print()
 
 
 def figure(rows, label, path):
@@ -264,7 +278,8 @@ def figure(rows, label, path):
 
     fig, axes = plt.subplots(1, len(rows), figsize=(6 * len(rows), 4.5))
     for ax, r in zip(np.atleast_1d(axes), rows, strict=True):
-        names = ["V_BS (flat ATM)", "flat ATM vs Heston\nEV curve (level+TS)", "marginal smile",
+        names = [f"V_BS (BSM at Heston\nATM vol {r['sigma_atm']:.2%})",
+                 "flat ATM vs Heston\nEV curve (level+TS)", "marginal smile",
                  "path (fwd skew, vvol)", "V_H"]  # fmt: skip
         steps, ses = [r["term1"], r["term2"], r["term3"]], [r["se_term1"], 0.0, r["se_term3"]]
         base = np.concatenate(([0.0], r["V_BS"] + np.cumsum([0.0] + steps[:-1])))

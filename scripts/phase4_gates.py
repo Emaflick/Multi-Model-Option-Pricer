@@ -3,13 +3,15 @@
 Settings, seeds and oracle tables are imported from tests/test_barrier.py, test_asian.py and
 test_autocallable.py, so the numbers are those the tests assert (derivations barrier.md, asian.md,
 autocallable.md §5; D-025 to D-031). The autocallable model gap uses scripts/autocall_compare.py
-with the GS Heston set: ILLUSTRATIVE, PRE-CALIBRATION (D-029); Phase 5 re-runs it with fitted
-parameters. Usage: .venv/bin/python scripts/phase4_gates.py [--seeds n]  (n: G2h fresh-seed scan)
+with the GS Heston set (ILLUSTRATIVE, PRE-CALIBRATION, D-029) and, for the ROADMAP gate, with the
+Phase 5 calibrated parameters data/processed/heston_fit_20261106_2213.json (D-038).
+Usage: .venv/bin/python scripts/phase4_gates.py [--seeds n]  (n: G2h fresh-seed scan)
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -462,9 +464,50 @@ def autocallable() -> None:
         gate(f"{name} (illustrative GS): expected sign V_H < V_BS (§3.5)",
              f"gap {r['gap']:+.5f} ({r['se_gap']:.5f})", "gap < -3 CRN SE",
              r["gap"] < -3 * r["se_gap"])  # fmt: skip
-    gate("ROADMAP: autocall BSM (ATM) vs CALIBRATED Heston", "needs Phase 5 fit (D-029)",
-         "report", False, "DEFERRED (Phase 5)")  # fmt: skip
+    calibrated()
     deng()
+
+
+def calibrated() -> None:
+    """ROADMAP gate closed in Phase 5 (D-038): BSM (ATM) vs CALIBRATED Heston, eq. (19), with the
+    parameters written by scripts/run_calibration.py (data/processed/heston_fit_<stamp>.json).
+    Checks (fix round 1, M1): the BS and TS legs on the attribution's CRN paths, restricted to the
+    sheet's first two dates, against the exact eq. (12) within 3 SE; the no-call MC legs against
+    the exact eq. (11) within 3 SE. Eq. (19) additivity is an identity (term3 is the residual) and
+    is not gated."""
+    js = ROOT / "data" / "processed" / "heston_fit_20261106_2213.json"
+    if not js.exists():
+        gate("ROADMAP: autocall BSM (ATM) vs CALIBRATED Heston", f"{js.name} missing",
+             "run run_calibration.py", False)  # fmt: skip
+        return
+    d = json.loads(js.read_text())
+    p = TC.HestonParams(**{k: float(d[k]) for k in ("kappa", "theta", "xi", "rho", "v0")})
+    print(f"\n  Model gap, eq. (19). Heston = {p}\n  LABEL: {d['label']}")
+    for name, sheet in AC.SHEETS.items():
+        f, DF, s_ref = AC.market_inputs(sheet)
+        r = AC.attribution(p, sheet, f, DF)
+        s_mkt, v_mkt = AC.market_atm_vol(sheet.t[-1]), np.nan
+        t = np.asarray(sheet.t)
+        if np.isfinite(s_mkt):
+            x = gbm_paths(s_mkt**2 * t, r["_z"])
+            v_mkt = float(autocall_pv(f[:, None] * np.exp(x), sheet, DF).mean())
+        AC.report(name, sheet, r, s_ref, f, DF, s_mkt, v_mkt, d["label"])
+        two = replace(sheet, t=tuple(t[:2]))
+        z2 = []
+        for w in (r["sigma_atm"] ** 2 * t, AC.total_variance(t, p)):
+            X2 = f[:2, None] * np.exp(gbm_paths(w[:2], r["_z"][:2]))
+            pv = autocall_pv(X2, two, DF[:2])
+            ex = autocall_two_dates(two, f[:2], DF[:2], w[:2])
+            z2.append(abs(z(pv.mean(), pv.std(ddof=1) / np.sqrt(pv.size), ex)))
+        znc = max(
+            abs(z(r[f"nc_mc_{k}"], r[f"se_nc_mc_{k}"], r[f"nc_{k}"])) for k in ("H", "TS", "BS")
+        )
+        gate(f"ROADMAP: {name} BSM (calibrated-Heston ATM vol) vs CALIBRATED Heston",
+             f"gap {r['gap']:+.5f} ({r['se_gap']:.5f}) = {r['term1']:+.5f} {r['term2']:+.5f} "
+             f"{r['term3']:+.5f}", "reported (eq. 19)", True)  # fmt: skip
+        gate(f"  {name} calibrated: BS, TS legs (2 dates) vs eq. (12); V^nc vs (11)",
+             f"max |z| {max(z2):.2f}; {znc:.2f}", "|z| <= 3",
+             max(z2) <= 3 and znc <= 3)  # fmt: skip
 
 
 def deng() -> None:

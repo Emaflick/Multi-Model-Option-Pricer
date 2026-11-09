@@ -6,8 +6,8 @@
 | 1 | BSM (Black-76) | **done** (commit 1656279) | parity 1.14e-13, IV round-trip 8.2e-13, greeks vs FD ≤ 1.24e-6 (gamma FD step D-014); 1 fix round (deep-OTM IV F1); F3 deferred |
 | 2 | Heston (COS, Lewis, MC) | **done** (commit a4d5561) | COS vs Lewis ≤ 1.8e-10 (self-checking COS, D-017); ξ→0 ≤ 5.6e-8 (D-015); QE vs COS 24/24 within 3SE, 480 fresh-seed z max 2.86; 1 fix round (F1 COS truncation on random sets 22.9% → 0%) |
 | 3 | SABR | **done** (commit ac7e63c) | ν→0 3.0e-12; Hagan vs MC max abs(z) 1.68 (validator own MC 2.42), domain ν²T ≤ 0.16; step bias ≤ 0.17 SE at Δ = T/250; 1 fix round (F1 step bias, F2–F5, F7); F6 deferred to Phase 5 |
-| 4 | Exotics (barrier, Asian, autocallable) | **done** (phase 4 commit) | 24 PASS / 0 FAIL / 1 DEFERRED; in+out 3.6e-15; BB MC vs RR max abs(z) 1.99; KV max abs(z) 1.90; CV VR 612–1924 (FM08); Haug per cell, no loosening; autocall vs calibrated Heston DEFERRED to Phase 5 (illustrative gap −0.0144 AC-Q); 1 fix round (F1 Haug, F2 Heston Asian grid); src 1900 lines |
-| 5 | Calibration to SPX | research done | `calibration.md` |
+| 4 | Exotics (barrier, Asian, autocallable) | **done** (commit 626897f) | 24 PASS / 0 FAIL / 1 DEFERRED; in+out 3.6e-15; BB MC vs RR max abs(z) 1.99; KV max abs(z) 1.90; CV VR 612–1924 (FM08); Haug per cell, no loosening; autocall vs calibrated Heston DEFERRED to Phase 5 (illustrative gap −0.0144 AC-Q); 1 fix round (F1 Haug, F2 Heston Asian grid); src 1900 lines |
+| 5 | Calibration to SPX | **done** (phase 5 commit) | 35/35 gates; Heston p̂ (v0 .0524, κ 4.58, θ .0529, ξ 1.65, ρ −.752), 16/16 starts one basin, Feller 0.178; RMSE 0.328 vol pt in sample / 1.379 out of sample; SABR 39/39 (all ν²T > 0.16); F5, F6 closed; Phase 4 autocall gate closed: AC-Q gap −0.0187; 1 fix round (11 minor, no re-validation of doc-only fixes); src 2482 lines |
 | 6 | Benchmark MC vs closed form | pending | |
 | 7 | Report & interview material | pending | |
 
@@ -22,4 +22,4 @@
   (e.g. ρ=−0.9, ν=5, T=2 → 0.12%); the loss must handle NaN (Phase 3 validator F6).
 - **Phase 5/7:** state SABR Hagan gate domain ν²T ≤ 0.16; at SPX-like ν≈1 Hagan errs by 0.4–0.8 vol pt in the left wing (Phase 3 F3).
 - **Phase 5:** close OPEN_ISSUES F5 (short-end DF smoothing) per `calibration.md` §2.7.
-- **Size:** core `src/` at 1891 lines after Phase 4 implementation (1360 after Phase 3) (target ≲ 1500); data.py + market.py = 481. Phases 4–5 will likely exceed the target — report to owner, don't refactor validated code.
+- **Size:** core `src/` at 2482 lines after Phase 5 (1360 after Phase 3, 1900 after Phase 4) (target ≲ 1500); data.py + market.py = 481. Phases 4–5 will likely exceed the target — report to owner, don't refactor validated code.
