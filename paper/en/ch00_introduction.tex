@@ -1,0 +1,309 @@
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction}
+\markboth{Introduction}{Introduction}
+
+\section*{Motivation}
+An exotic option is not priced in a vacuum. A barrier, an Asian or an autocallable must carry a price that is
+consistent with the European options the market quotes every day: those options fix the implied-volatility surface,
+and a model that does not reproduce it prices the exotic in a market that does not exist.
+
+The simplest model, Black's, uses a single volatility for all strikes and all expiries, so it does not see the smile.
+Stochastic-volatility models such as Heston and SABR do see it, but at a cost:
+
+\begin{itemize}
+\item the pricing formulas are no longer in closed form, so numerical methods are needed (Fourier, Monte
+Carlo, asymptotic expansions);
+\item every numerical method has its own ways of going wrong, often silently;
+\item the parameters must be estimated from data, and the estimate carries an error that one must be able to measure.
+\end{itemize}
+
+A price is worth only as much as the verification behind it. This work starts from a practical question: can one
+build a small, readable pricer in which \emph{every} number is reproducible and checked by at least one independent
+method? The answer is the \textsc{qpricer} library, and this document is both its study guide and its technical
+report.
+
+\section*{What the library does}
+\textsc{qpricer} is written in Python and uses only NumPy, SciPy, pandas and matplotlib (plus yfinance to download the
+data). It covers four blocks.
+
+\begin{enumerate}
+\item \textbf{Market data.} It downloads a snapshot of the option chain on the S\&P\,500 index (SPX), cleans it and,
+for each expiry, extracts the forward $F$ and the discount factor $\DF$ from put--call parity, without assuming any
+rates or dividends (Chapter~\ref{cap:dati}).
+\item \textbf{Models and European options.} Black-76 with Greeks and implied volatility (Chapter~\ref{cap:black});
+Heston with its characteristic function, the COS method, the Lewis formula and Monte Carlo with Andersen's QE scheme
+(Chapters~\ref{cap:heston} and~\ref{cap:mc}); SABR with $\beta=1$, Hagan's formula and Monte Carlo
+(Chapter~\ref{cap:sabr}).
+\item \textbf{Exotic options.} Barriers with continuous and discrete monitoring (Chapter~\ref{cap:barriere}),
+arithmetic Asians with a geometric control variate (Chapter~\ref{cap:asiatiche}) and single-underlying
+autocallables (Chapter~\ref{cap:autocallable}), under Black and under Heston.
+\item \textbf{Calibration and benchmark.} Heston calibrated to the whole SPX surface by nonlinear least squares, SABR
+expiry by expiry, no-arbitrage checks (Chapter~\ref{cap:calibrazione}); a systematic comparison between Monte Carlo
+and closed forms, with convergence rates and variance reduction (Chapter~\ref{cap:benchmark}).
+\end{enumerate}
+
+\section*{Architecture}
+The code lives in \code{src/qpricer/} and is split into a few modules, each with a single job.
+Figure~\ref{fig:architettura} shows how they use one another; Table~\ref{tab:moduli} lists the files.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  mod/.style={draw,rounded corners,align=center,text width=33mm,minimum height=13mm,font=\small},
+  >=Stealth, every edge/.style={draw,->,thick,black!70}]
+\node[mod,fill=bluidea!10]      (market) at (0,0)      {\code{market.py}\\[1pt]$F$, $\DF$ from parity};
+\node[mod,fill=bluidea!10]      (data)   at (4.6,0)    {\code{data.py}\\[1pt]SPX chain, OTM surface};
+\node[mod,fill=verdeperche!10]  (models) at (0,-2.4)   {\code{models/}\\[1pt]bsm, heston, sabr};
+\node[mod,fill=verdeperche!10]  (iv)     at (4.6,-2.4) {\code{iv.py}\\[1pt]implied volatility};
+\node[mod,fill=arancioprog!10]  (prod)   at (0,-4.8)   {\code{products.py}\\[1pt]payoffs, term sheets};
+\node[mod,fill=arancioprog!10]  (eng)    at (4.6,-4.8) {\code{engines/}\\[1pt]analytic, fourier, mc, vr,
+  exotic\_mc};
+\node[mod,fill=violadom!10]     (cal)    at (9.4,-2.4) {\code{calibration.py}\\[1pt]objectives, fit, diagnostics};
+\path (market) edge (data)
+      (data)   edge (cal)
+      (models) edge (iv)
+      (iv)     edge (cal)
+      (models) edge (eng)
+      (prod)   edge (eng)
+      (eng)    edge (cal);
+\end{tikzpicture}
+\caption{The modules of \code{src/qpricer/}. An arrow $A\to B$ means that $B$ uses $A$. The scripts in
+\code{scripts/} and the tests in \code{tests/} sit on top of everything and produce every number in this document.}
+\label{fig:architettura}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\small
+\caption{The files of \code{src/qpricer/} (2644 lines in total, counted with \code{wc -l}).}
+\label{tab:moduli}
+\begin{tabularx}{\textwidth}{l r X l}
+\toprule
+File & Lines & Content & Ch.\\
+\midrule
+\code{market.py} & 233 & put--call parity regression, $F$ and $\DF$ per expiry, forward curve & \ref{cap:dati}\\
+\code{data.py} & 270 & chain loading and cleaning, ACT/365F times, OTM surface, arbitrage filter
+& \ref{cap:dati}\\
+\code{iv.py} & 160 & Black inversion: Newton with Brent fallback & \ref{cap:black}\\
+\code{models/bsm.py} & 127 & Black-76 price and Greeks & \ref{cap:black}\\
+\code{models/heston.py} & 113 & parameters, characteristic function, cumulants & \ref{cap:heston}\\
+\code{models/sabr.py} & 142 & Hagan's formula, ATM inversion, Monte Carlo & \ref{cap:sabr}\\
+\code{products.py} & 80 & vanilla payoffs, autocallable term sheets and cash flows & \ref{cap:autocallable}\\
+\code{engines/analytic.py} & 208 & barriers (Reiner--Rubinstein, BGK), geometric Asian, autocallable oracles
+& \ref{cap:barriere}--\ref{cap:autocallable}\\
+\code{engines/fourier.py} & 149 & self-verifying COS and the Lewis formula & \ref{cap:heston}\\
+\code{engines/mc.py} & 187 & Heston simulation (Euler, QE, QE-M), estimator and SE & \ref{cap:mc}\\
+\code{engines/vr.py} & 162 & antithetic variates, control variate, Sobol' & \ref{cap:benchmark}\\
+\code{engines/exotic\_mc.py} & 230 & Monte Carlo for barriers, Asians and autocallables
+& \ref{cap:barriere}--\ref{cap:autocallable}\\
+\code{calibration.py} & 582 & objectives, residuals, Heston and SABR fits, error bars, arbitrage checks
+& \ref{cap:calibrazione}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The split has a precise purpose. \code{products.py} describes \emph{what} a contract pays and knows nothing about
+models; \code{models/} describes the dynamics and knows nothing about contracts; \code{engines/} combines the two.
+This way the same payoff can be priced with several engines, and it is precisely the comparison between different
+engines that makes verification possible.
+
+\section*{Conventions}
+\paragraph{Forward-based kernels.} Every pricing function takes $F$, $\DF$ and $T$, never the rate $r$ or the
+dividend yield $q$. The reason is that put--call parity gives $F$ and $\DF$ directly for each expiry, and for SPX the
+rates, dividends and stock-borrow cost cannot be observed separately. Everything that matters for a European option
+is contained in the forward (Chapter~\ref{cap:opzioni}).
+
+\paragraph{Time, rates, volatilities.} Time is measured in years with the ACT/365F convention, computed in seconds up
+to the settlement instant. Rates are continuously compounded. Volatilities are annualized and in decimals: $0.20$
+means 20\%, and ``one vol point'' is $0.01$.
+
+\paragraph{Arithmetic.} All computations are in double precision (\code{float64}) and vectorized with NumPy, with no
+Python loops over paths or strikes.
+
+\paragraph{Reproducible randomness.} Random numbers come only from an explicit generator, created with
+\code{np.random.default\_rng(seed)}. Every Monte Carlo estimate returns the quadruple (price, standard error, number
+of paths, seed), so anyone can redo the computation and obtain the same digits.
+
+\paragraph{Tests.} The \code{pytest} suite in \code{tests/} contains 599 tests. The frozen reference values stored in
+\code{tests/golden/} come from methods independent of the implementation, and the source is stated in the file
+itself.
+
+\section*{Contributions and main results}
+This work does not propose new models: Black, Heston and SABR are classics. The contribution is a compact and
+\emph{verified} implementation of the whole chain, from raw data to the price of an exotic, with the errors of every
+step measured and stated. In particular:
+
+\begin{itemize}
+\item a data pipeline that extracts $F$ and $\DF$ from parity with a robust regression, and corrects the discount
+factors of the short expiries, which the data determine poorly (Chapter~\ref{cap:dati});
+\item a \emph{self-verifying} COS method, which chooses its own numerical parameters and checks its own truncation
+error, compared against the Lewis formula (Chapter~\ref{cap:heston});
+\item at least one independent oracle for every exotic: closed forms, model-free identities, limiting cases in
+which Heston reduces to Black (Chapters~\ref{cap:barriere}--\ref{cap:autocallable});
+\item a Heston calibration to SPX validated first on synthetic data, with error bars and a sensitivity analysis that
+separates estimation error from model error (Chapter~\ref{cap:calibrazione});
+\item a Monte Carlo benchmark that measures convergence rates, variance reduction and work-normalized efficiency
+(Chapter~\ref{cap:benchmark});
+\item an independent validation of every phase, with its own reference computations rather than the
+implementation's tests (Chapter~\ref{cap:validazione}).
+\end{itemize}
+
+Table~\ref{tab:risultati-intro} collects a few measured numbers; the full picture is in
+Chapter~\ref{cap:validazione}.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Some measured results. ``$|z|$'' is the distance between the Monte Carlo estimate and the reference in
+standard errors; the test passes if $|z|\le3$.}
+\label{tab:risultati-intro}
+\begin{tabularx}{\textwidth}{X l l}
+\toprule
+Check & Measure & Ch.\\
+\midrule
+put--call parity in Black-76, $K/F\in[0.25,4]$ & $1.1\times10^{-13}$ & \ref{cap:black}\\
+implied-volatility round trip & $\le8.2\times10^{-13}$ & \ref{cap:black}\\
+COS vs Lewis on a grid of strikes and expiries & $\le1.8\times10^{-10}$ & \ref{cap:heston}\\
+QE and QE-M vs COS (4 parameter sets, 3 strikes) & 24 of 24 within 3 SE & \ref{cap:mc}\\
+Hagan vs Monte Carlo for SABR, $\nu^2T\le0.16$ (21 comparisons) & $\max|z|=1.68$ & \ref{cap:sabr}\\
+barriers: knock-in $+$ knock-out $=$ vanilla on the same paths & $3.6\times10^{-15}$ & \ref{cap:barriere}\\
+barriers: Monte Carlo with Brownian bridge vs Reiner--Rubinstein & $\max|z|=1.99$ & \ref{cap:barriere}\\
+geometric Asian: Monte Carlo vs Kemna--Vorst (39 cases) & $\max|z|=1.90$ & \ref{cap:asiatiche}\\
+arithmetic Asian: variance reduction with the geometric control & 612--2202 & \ref{cap:asiatiche}\\
+quarterly autocallable: calibrated Heston minus Black (Heston ATM vol) & $-0.0187$ (SE 0.0002)
+& \ref{cap:autocallable}\\
+Heston calibration: starts reaching the same minimum & 16 of 16 & \ref{cap:calibrazione}\\
+Heston RMSE in sample / out of sample (vol points) & 0.328 / 1.379 & \ref{cap:calibrazione}\\
+log-log slopes of the Monte Carlo error (12 estimates) & from $-0.554$ to $-0.487$ & \ref{cap:benchmark}\\
+variance reduction at $2^{20}$ paths, ATM Black: antithetic / control / Sobol'
+& 1.6 / 4.7 / $1.4\times10^5$ & \ref{cap:benchmark}\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Equally important are the limitations found, which the document reports without softening them. Heston, with a
+single time scale, cannot reproduce the skew of the weekly expiries and that of the long ones at the same time: out
+of sample the error is about four times the in-sample error. Hagan's formula for SABR is accurate only for small
+$\nu^2T$, while the 39 calibrated SPX expiries all lie beyond the verified threshold $\nu^2T\le0.16$. On real data
+the uncertainty of the Heston parameters is about ten times what the curvature standard errors suggest.
+
+\section*{How to read this document}
+\paragraph{Who it is for.} Readers who know calculus (derivatives, integrals, Taylor series), some probability
+(random variable, expected value, variance, normal distribution) and a little linear algebra. Everything else
+(Brownian motion, Itô calculus, changes of measure, Fourier transforms, Monte Carlo, nonlinear least squares) is
+introduced when needed, intuitively but correctly. Readers who already know the subject can read the Abstract,
+Table~\ref{tab:risultati-intro} and Chapter~\ref{cap:validazione}, and dip into the chapters only where needed.
+
+\paragraph{The structure.} The document has four parts.
+
+\begin{itemize}
+\item \textbf{Part I, Foundations} (Chapters~\ref{cap:opzioni}--\ref{cap:black}): options, forwards and absence of
+arbitrage; the mathematical tools; the SPX data; the Black model.
+\item \textbf{Part II, Stochastic volatility and Monte Carlo} (Chapters~\ref{cap:heston}--\ref{cap:sabr}): the
+smile and Heston with Fourier methods; Monte Carlo and Heston simulation; SABR.
+\item \textbf{Part III, Exotic options} (Chapters~\ref{cap:barriere}--\ref{cap:autocallable}): barriers, Asians,
+autocallables.
+\item \textbf{Part IV, Calibration, benchmark and validation}
+(Chapters~\ref{cap:calibrazione}--\ref{cap:validazione}): calibration to SPX, the Monte Carlo benchmark, a summary of
+the validation.
+\end{itemize}
+
+The appendices contain a glossary and the bibliography.
+
+\paragraph{A path for readers starting from scratch.} Figure~\ref{fig:percorso} shows the dependencies between the
+chapters.
+
+\begin{enumerate}
+\item Read Chapters~\ref{cap:opzioni}--\ref{cap:black} in full: they are the basis for everything else. On a first
+pass, the first sections and the summary of Chapter~\ref{cap:dati} are enough.
+\item Move on to Chapter~\ref{cap:heston} (Heston) and Chapter~\ref{cap:mc} (Monte Carlo). The latter is needed for
+all the exotics.
+\item Read the exotics in the order \ref{cap:barriere}, \ref{cap:asiatiche}, \ref{cap:autocallable}: each one uses
+something from the previous one.
+\item Chapter~\ref{cap:sabr} (SABR) can be postponed: it is needed mainly for the calibration.
+\item Finish with calibration, benchmark and validation (Chapters~\ref{cap:calibrazione}--\ref{cap:validazione}),
+which use almost everything.
+\end{enumerate}
+
+At the end of each chapter, the summary and the self-check questions tell you whether you are ready to move on.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[node distance=6mm and 7mm,
+  box/.style={draw,rounded corners,align=center,minimum width=27mm,minimum height=9mm,font=\small},
+  >=Stealth]
+\node[box,fill=bluidea!10] (c1) {Ch.\,\ref{cap:opzioni}--\ref{cap:strumenti}\\options, tools};
+\node[box,fill=bluidea!10,right=of c1] (c3) {Ch.\,\ref{cap:dati}\\SPX data};
+\node[box,fill=bluidea!10,right=of c3] (c4) {Ch.\,\ref{cap:black}\\Black-76};
+\node[box,fill=verdeperche!10,below=of c4] (c5) {Ch.\,\ref{cap:heston}\\Heston (Fourier)};
+\node[box,fill=verdeperche!10,left=of c5] (c6) {Ch.\,\ref{cap:mc}\\Monte Carlo};
+\node[box,fill=verdeperche!10,left=of c6] (c7) {Ch.\,\ref{cap:sabr}\\SABR};
+\node[box,fill=arancioprog!10,below=of c7] (c8) {Ch.\,\ref{cap:barriere}\\barriers};
+\node[box,fill=arancioprog!10,right=of c8] (c9) {Ch.\,\ref{cap:asiatiche}\\Asians};
+\node[box,fill=arancioprog!10,right=of c9] (c10) {Ch.\,\ref{cap:autocallable}\\autocallables};
+\node[box,fill=violadom!10,below=of c8] (c11) {Ch.\,\ref{cap:calibrazione}\\calibration};
+\node[box,fill=violadom!10,right=of c11] (c12) {Ch.\,\ref{cap:benchmark}\\MC benchmark};
+\node[box,fill=violadom!10,right=of c12] (c13) {Ch.\,\ref{cap:validazione}\\validation};
+\draw[->] (c1)--(c3); \draw[->] (c3)--(c4); \draw[->] (c4)--(c5);
+\draw[->] (c5)--(c6); \draw[->] (c6)--(c7);
+\draw[->] (c6)--(c8); \draw[->] (c6)--(c9); \draw[->] (c6)--(c10);
+\draw[->] (c8)--(c9); \draw[->] (c9)--(c10);
+\draw[->] (c7.west) -- ++(-5mm,0) |- (c11.west); \draw[->] (c11)--(c12); \draw[->] (c12)--(c13);
+\draw[->] (c10)--(c12);
+\end{tikzpicture}
+\caption{Dependencies between the chapters. Blue: foundations; green: stochastic volatility and Monte Carlo; orange:
+exotics; purple: calibration, benchmark and validation.}
+\label{fig:percorso}
+\end{figure}
+
+\section*{The boxes}
+The main text contains the definitions and the derivations. Seven kinds of box accompany it, each with a fixed role,
+so that you can tell at a glance what you are reading.
+
+\begin{idea}
+The concept to remember even after the formulas have been forgotten.
+\end{idea}
+\begin{perche}
+The reasoning that justifies a choice or a step: why it is done this way and not another.
+\end{perche}
+\begin{attenzione}
+A common mistake, conceptual or numerical, and how to avoid it.
+\end{attenzione}
+\begin{esempio}
+A concrete computation with numbers, often taken from the project.
+\end{esempio}
+\begin{progetto}
+How the concept is implemented in the code (functions and files) and which results were measured. All the numbers
+in these boxes come from scripts in the repository and can be regenerated.
+\end{progetto}
+\begin{riassunto}
+The essential points of the chapter, at the end of each one.
+\end{riassunto}
+\begin{domande}
+Questions to check your understanding, with a hint for the answer.
+\end{domande}
+
+\section*{Main notation}
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{>{$}l<{$}X}
+\toprule
+\text{Symbol} & Meaning \\
+\midrule
+S_t & \emph{spot} price of the underlying at time $t$ (here the SPX index) \\
+F,\ F_t=F(t,T) & \emph{forward} price for delivery at $T$, observed today ($F$) or at time $t$ ($F_t$) \\
+\DF=P(0,T) & discount factor: today's value of 1 dollar paid at $T$ \\
+K & strike (exercise price) \\
+T & expiry in years (ACT/365F: calendar days divided by 365) \\
+\sigma & annualized volatility, in decimals ($0.20 = 20\%$);\newline one vol point is $0.01$ \\
+x=\ln(F/K),\ k=\ln(K/F) & log-moneyness (two opposite signs; both are used) \\
+s=\sigma\sqrt T & total volatility (standard deviation of $\ln F_T$) \\
+\theta=\pm1 & $+1$ call, $-1$ put (in the Heston chapter $\theta$ is also a parameter: the context makes it clear) \\
+\Phi,\ \varphi & cumulative distribution function and density of the standard normal \\
+\Q^T & $T$-forward measure (Chapter~\ref{cap:strumenti}) \\
+\E^T[\cdot] & expected value under $\Q^T$ \\
+\SE & standard error of a Monte Carlo estimate \\
+\varepsilon=2^{-52} & machine epsilon in double precision ($\approx2.2\times10^{-16}$) \\
+\bottomrule
+\end{tabularx}
+\end{center}

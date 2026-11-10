@@ -220,7 +220,7 @@ Undiscounted parity adds a function linear in $K$ on each side of $F$, which dro
 - **Published reference values.** None apply: calibrated parameters are snapshot-specific, and no published study uses this chain. The GS set is
   synthetic truth only. This note quotes no published calibration number.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **Fit in vol space, weight by confidence, and know which input moves the vol.** Vol is the market's normalised price, so vol errors compare like
    with like across strikes and maturities. Price errors divided by vega are the same to first order but blow up in the wings when the model is far

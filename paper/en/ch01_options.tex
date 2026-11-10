@@ -1,0 +1,249 @@
+\chapter{Options, forwards and absence of arbitrage}
+\label{cap:opzioni}
+
+In this chapter we build the basic language: what an option is, what the discount factor and the forward price are,
+and why the principle of \emph{absence of arbitrage} is enough on its own to derive exact relations between prices
+(put--call parity) without any model. At the end we will see why the price of a derivative is written as an
+\emph{expected value}, and under which probability.
+
+\section{What an option is}
+
+\begin{definizione}[European call and put]
+A \textbf{European call} with strike $K$ and expiry $T$ gives the right, but not the obligation, to buy the
+underlying at the price $K$ on date $T$. A \textbf{European put} gives the right to sell it at $K$ on $T$.
+\end{definizione}
+
+The holder of the call exercises it only if it pays to do so, that is, if $S_T>K$: she buys at $K$ something worth
+$S_T$ and gains $S_T-K$. Otherwise she lets the option expire and receives zero. The \textbf{payoff} (the cash flow at
+expiry) is therefore
+\begin{equation}
+\text{call: } (S_T-K)^+ ,\qquad \text{put: } (K-S_T)^+ ,\qquad\text{where } y^+:=\max(y,0).
+\end{equation}
+In compact form, with $\theta=+1$ for the call and $\theta=-1$ for the put: $(\theta(S_T-K))^+$.
+
+\begin{center}
+\begin{tikzpicture}[scale=0.9,>=Stealth]
+\draw[->] (0,0)--(5,0) node[right]{$S_T$}; \draw[->] (0,0)--(0,3) node[above]{payoff};
+\draw[very thick,bluidea] (0,0)--(2.2,0)--(4.8,2.6); \node[below] at (2.2,0){$K$};
+\node[bluidea] at (3.2,2.3){call};
+\begin{scope}[xshift=7cm]
+\draw[->] (0,0)--(5,0) node[right]{$S_T$}; \draw[->] (0,0)--(0,3) node[above]{payoff};
+\draw[very thick,rossoatt] (0,2.2)--(2.2,0)--(4.8,0); \node[below] at (2.2,0){$K$};
+\node[rossoatt] at (1.6,2.0){put};
+\end{scope}
+\end{tikzpicture}
+\end{center}
+
+The SPX index options listed on Cboe are \textbf{European} (exercisable only at expiry) and \textbf{cash-settled}
+(the index is not delivered: the difference is paid). This is a huge advantage for us: all the ``European''
+relations we will see hold exactly. Options on the SPY ETF, by contrast, are \emph{American} (exercisable at any
+time), and for them many equalities become mere inequalities.
+
+\paragraph{Basic terminology.} A call is \emph{in the money} (ITM) if $S>K$, \emph{at the money} (ATM) if
+$S\approx K$, \emph{out of the money} (OTM) if $S<K$; for the put it is the other way round. The \emph{intrinsic
+value} is the payoff if the option were exercised immediately, $(\theta(S-K))^+$; the \emph{time value} is the price
+minus the intrinsic value. An OTM option has zero intrinsic value: its price is all time value. This observation will
+come back several times (Chapters~\ref{cap:dati} and~\ref{cap:black}).
+
+\section{The time value of money: the discount factor}
+
+A dollar today is worth more than a dollar a year from now, because it can be invested. The \textbf{discount factor}
+\begin{equation}
+\DF = P(0,T) = \text{today's price of a security that pays 1 at } T
+\end{equation}
+(a \emph{zero-coupon bond}) summarizes this effect. The continuously compounded \emph{zero} rate is defined by
+$\DF=e^{-rT}$, that is
+\begin{equation}\label{eq:tasso-da-DF}
+r = -\frac{\ln \DF}{T}.
+\end{equation}
+With positive rates, $\DF\in(0,1]$. In the project the discount factor is not taken from an external curve: it is
+\emph{inferred from the option prices} (Chapter~\ref{cap:dati}).
+
+\section{The forward price}
+
+A \textbf{forward contract} with delivery price $K$ obliges its holder to buy the underlying at $T$ paying $K$. Its
+payoff is $S_T-K$ (it can be negative: it is an obligation). The \textbf{forward price} $F=F(0,T)$ is the value of
+$K$ that makes today's value of the contract zero.
+
+\paragraph{How it is derived (cash and carry).} Suppose the underlying pays no dividends. I can replicate the payoff
+$S_T-K$ as follows: today I buy the underlying at $S_0$ and borrow $K\cdot\DF$ (that is, I sell $K$ zero-coupon
+bonds). At $T$ I hold the underlying, worth $S_T$, and must repay $K$: in total $S_T-K$. Two strategies with the same
+payoff must have the same price today (otherwise I buy the cheaper one, sell the dearer one and pocket a riskless
+profit). Hence
+\begin{equation}
+\text{forward value} = S_0-K\,\DF \quad\Longrightarrow\quad F=\frac{S_0}{\DF}=S_0e^{rT}.
+\end{equation}
+If the underlying pays dividends (or earns something when lent out, the \emph{repo}), whoever holds the underlying
+collects them and whoever holds the forward does not; the forward is lower:
+\begin{equation}\label{eq:forward-dividendi}
+F=\frac{S_0-\mathrm{PV}(\text{dividends})}{\DF},
+\end{equation}
+or, with a continuous yield $q$, $F=S_0e^{(r-q)T}$.
+
+\begin{idea}
+The forward $F$ already contains \emph{all} of the ``carry'': rates, dividends, stock-borrow cost. Today's value of a
+forward with delivery price $K$ is
+\begin{equation}\label{eq:valore-forward}
+\text{value} = \DF\,(F-K).
+\end{equation}
+Indeed, at expiry the contract pays $S_T-K$; the forward with price $F$ is worth zero, so the contract with price $K$
+is worth as much as receiving the certain difference $F-K$ at $T$, that is, $\DF\,(F-K)$.
+\end{idea}
+
+\section{Absence of arbitrage and put--call parity}
+
+\begin{definizione}[Arbitrage]
+An \textbf{arbitrage} is a strategy that costs zero (or less) today, never loses, and makes money in some scenario.
+In a liquid market arbitrages are eliminated instantly; one therefore assumes that they \emph{do not exist}.
+\end{definizione}
+
+The most important consequence is the \emph{law of one price}: two portfolios with the same payoff in every scenario
+have the same price today.
+
+\begin{proposizione}[Put--call parity]\label{prop:parita}
+For European calls and puts with the same strike $K$ and the same expiry $T$:
+\begin{equation}\label{eq:parita}
+C-P=\DF\,(F-K).
+\end{equation}
+\end{proposizione}
+
+\begin{proof}[Step-by-step reasoning]\leavevmode
+\begin{enumerate}
+\item At expiry, for any value of $S_T$: $(S_T-K)^+-(K-S_T)^+=S_T-K$. (If $S_T>K$ the first term equals $S_T-K$ and
+the second is zero; if $S_T<K$ the first is zero and the second is $K-S_T$, which with the minus sign again gives
+$S_T-K$.)
+\item Therefore the portfolio ``long one call, short one put'' has \emph{the same payoff} as a forward with delivery
+price $K$.
+\item By the law of one price the values today coincide; with \eqref{eq:valore-forward},
+$C-P=\DF\,(F-K)$.\qedhere
+\end{enumerate}
+\end{proof}
+
+\begin{perche}[title={Why is it so important?}]
+Because it \textbf{uses no model}: there is no need to know how the price moves or how much volatility there is, nor
+to know rates and dividends. It holds for any European option. The project uses it in three ways:
+\begin{enumerate}
+\item in reverse, to \emph{measure} $F$ and $\DF$ from the market prices of calls and puts
+(Chapter~\ref{cap:dati});
+\item as a correctness test for the code (if the pricer violates parity, there is a bug);
+\item to obtain a call from a put already computed (useful when computing the put is numerically more stable, as in
+Heston, Chapter~\ref{cap:heston}).
+\end{enumerate}
+\end{perche}
+
+\subsection{Price bounds and static arbitrage in \texorpdfstring{$K$}{K}}
+Other ``model-free'' constraints follow from the same principle. Denote by $c=C/\DF$ and $p=P/\DF$ the
+\emph{undiscounted} prices.
+\begin{itemize}
+\item \textbf{Bounds:} $(F-K)^+\le c\le F$ and $(K-F)^+\le p\le K$. The call is worth at least as much as the forward
+(I would never exercise it at a loss) and no more than the underlying itself.
+\item \textbf{Monotonicity:} the call is decreasing in $K$ (a higher strike pays less in every scenario), the put
+increasing.
+\item \textbf{Vertical spread:} for $K_1<K_2$, $0\le C(K_1)-C(K_2)\le\DF\,(K_2-K_1)$: the portfolio ``long the $K_1$
+call, short the $K_2$ call'' pays between $0$ and $K_2-K_1$.
+\item \textbf{Butterfly (convexity):} $C$ is convex in $K$. The combination ``long $C(K-h)$, long $C(K+h)$, short
+$2C(K)$'' pays a non-negative ``tent'', so it must cost $\ge0$.
+\end{itemize}
+
+\begin{idea}[title={Key idea: from prices to the density (Breeden--Litzenberger)}]
+Differentiating the call price twice with respect to the strike gives the probability density of the underlying at
+expiry (under the pricing measure we will meet shortly):
+\begin{equation}\label{eq:breeden}
+\frac{\partial^2 C}{\partial K^2}=\DF\cdot f_{S_T}(K).
+\end{equation}
+The reason: $\partial_K(S_T-K)^+=-\ind\{S_T>K\}$ and $\partial_K^2(S_T-K)^+=\delta(S_T-K)$ (a Dirac delta). Convexity
+in $K$ therefore simply means ``non-negative density''. A set of prices that violates it implies negative
+probabilities, that is, an arbitrage (``butterfly arbitrage'').
+\end{idea}
+
+\section{Why the price is an expected value}
+
+\subsection{A one-step example}
+Consider a world with two scenarios: today the underlying is worth $S_0=100$; one year from now it is worth $120$
+(``up'') or $80$ (``down''). For simplicity, rates are zero. A call with strike $100$ pays $20$ or $0$.
+
+\emph{Replication.} I look for $\Delta$ units of the underlying and $B$ dollars in cash such that the portfolio pays
+like the call: $120\Delta+B=20$ and $80\Delta+B=0$. Subtracting: $40\Delta=20$, so $\Delta=0.5$ and $B=-40$. The
+portfolio costs $0.5\cdot100-40=10$ today. Then the call must be worth $10$: otherwise there is an arbitrage.
+
+\emph{Crucial observation.} We never used the ``real'' probability that the price goes up! Now I define $q$ as the
+probability that makes the underlying a \emph{martingale} (expected future value equal to today's value):
+$120q+80(1-q)=100\Rightarrow q=\tfrac12$. Then
+\[
+\E^q[\text{payoff}]=\tfrac12\cdot20+\tfrac12\cdot0=10 .
+\]
+The same number. This is no coincidence: the no-arbitrage price is always the (discounted) expected value of the
+payoff under the probability that makes discounted prices martingales. This probability is called the
+\textbf{risk-neutral measure} (or martingale measure). It is \emph{not} a forecast: it is a computational tool that
+encodes the fact that the derivative can be replicated.
+
+\subsection{Numéraire and forward measure}
+The argument generalizes (the fundamental theorem of asset pricing). One chooses an always-positive reference
+security, the \textbf{numéraire} $N_t$; there exists a measure $\Q^N$ under which \emph{every price divided by the
+numéraire is a martingale}. Then, for a payoff $g$ paid at $T$:
+\[
+\frac{V_0}{N_0}=\E^N\!\left[\frac{g}{N_T}\right].
+\]
+The most convenient choice for options with a single expiry is $N_t=P(t,T)$, the zero-coupon bond maturing at $T$:
+it is worth $P(0,T)=\DF$ today and $P(T,T)=1$ at expiry. The corresponding measure is called the \textbf{$T$-forward
+measure} $\Q^T$, and the formula becomes
+\begin{equation}\label{eq:prezzo-forward-misura}
+\boxed{V_0=\DF\cdot\E^T[g]}
+\end{equation}
+Moreover, the forward price $F_t=F(t,T)$ is a \textbf{martingale} under $\Q^T$:
+\begin{equation}
+\E^T[F_T\mid\mathcal F_t]=F_t,\qquad F_T=S_T,\qquad \E^T[S_T]=F.
+\end{equation}
+
+\begin{perche}[title={Why is the forward a martingale under $\Q^T$?}]
+Without dividends $F_t=S_t/P(t,T)$: it is the price of a security (the underlying) divided by the numéraire, hence a
+martingale by the definition of $\Q^T$. With dividends the argument extends by using the portfolio that reinvests
+the dividends. Intuitively: entering a forward costs nothing, so under the pricing measure its ``expected gain'' must
+be zero.
+\end{perche}
+
+\begin{idea}[title={Key idea: working with the forward}]
+Under $\Q^T$ the forward has no drift. Everything about rates, dividends and stock-borrow cost is packed into the two
+numbers $F$ and $\DF$. This is why all the pricing ``kernels'' of the project take as input only $(F,\DF,T)$ and the
+model parameters, and \emph{never} $r$ or $q$. The advantages:
+\begin{itemize}
+\item for SPX the dividends are discrete and uncertain, and the stock-borrow rate is not observable: assuming a wrong
+yield $q$ would shift all the forward prices and distort the volatility surface;
+\item $F$ and $\DF$ are obtained directly from the quotes via parity (Chapter~\ref{cap:dati}), so they are
+consistent with the option prices;
+\item the formulas become simpler (Chapter~\ref{cap:black}).
+\end{itemize}
+\end{idea}
+
+\section{Implied volatility as the market's ``language''}
+In Chapter~\ref{cap:black} we will see Black's formula: given $(F,K,T,\DF)$, the price depends on a single
+unobservable parameter, the volatility $\sigma$, and is strictly increasing in it. So every price (that respects the
+no-arbitrage bounds) corresponds to \emph{one and only one} $\sigma$: the \textbf{implied volatility}. Traders
+exchange prices expressed in implied volatility because it is a number that can be compared across different strikes
+and expiries. If the Black model were true, the implied volatility would be the same for every strike; in the data it
+is not (\emph{smile} and \emph{skew}, Chapter~\ref{cap:heston}). Much of this document is about models able to
+reproduce this fact.
+
+\begin{riassunto}
+\begin{itemize}
+\item Payoffs: call $(S_T-K)^+$, put $(K-S_T)^+$. SPX options are European and cash-settled.
+\item $\DF={}$today's price of 1 paid at $T$; $F$ = the delivery price that makes a forward worth zero; the forward
+with price $K$ is worth $\DF\,(F-K)$.
+\item Absence of arbitrage $\Rightarrow$ parity $C-P=\DF\,(F-K)$, bounds, monotonicity and convexity in $K$, with no
+model.
+\item Price $=\DF\cdot\E^T[\text{payoff}]$ under the $T$-forward measure, where $F_t$ is a martingale.
+\item The project always reasons in terms of $(F,\DF,T)$ and never $r,q$: the pricing kernels never see a rate or a
+dividend.
+\end{itemize}
+\end{riassunto}
+
+\begin{domande}[unbreakable]
+\begin{enumerate}
+\item Prove put--call parity starting from the payoffs. \emph{Hint:} $(S-K)^+-(K-S)^+=S-K$.
+\item Why does parity hold for SPX options and not for those on SPY? \emph{Hint:} SPY options are American; early
+exercise breaks the equality of the payoffs, and only bounds remain.
+\item In the binomial example, why does the real probability not matter? \emph{Hint:} the price is the cost of the
+replication, which does not depend on how likely each scenario is.
+\item What does it mean that $C$ must be convex in $K$? \emph{Hint:} \eqref{eq:breeden}: density $\ge0$.
+\end{enumerate}
+\end{domande}

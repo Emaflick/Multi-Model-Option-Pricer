@@ -45,7 +45,7 @@ option ($\theta x\le0$): $0<b_\theta(x,s)<e^{-|x|/2}$.
 $\Theta_C-\Theta_P=r\,DF(F-K)$; $\partial C/\partial K=-DF\,\Phi(d_2)$; $\partial^2C/\partial K^2=DF\,\varphi(d_2)/(Ks)$;
 $F\varphi(d_1)=K\varphi(d_2)$.
 
-**(10)** Spot mapping (interview use; $F=F(S)$ linear in $S$): $\Delta_S=\Delta_F\,\partial F/\partial S$,
+**(10)** Spot mapping ($F=F(S)$ linear in $S$): $\Delta_S=\Delta_F\,\partial F/\partial S$,
 $\Gamma_S=\Gamma_F(\partial F/\partial S)^2$, $\mathcal V_S=\mathcal V$. With a yield model $F=Se^{(r-q)T}$ we get
 $\partial F/\partial S=F/S$ and $\Theta_S=\Theta-(r-q)F\Delta_F$ (at fixed $S,r,q$). For the call this gives
 $\Delta_S=e^{-qT}\Phi(d_1)$, $\Gamma_S=e^{-qT}\varphi(d_1)/(S\sigma\sqrt T)$ and
@@ -219,7 +219,7 @@ GBM MC agrees within 3 SE (Phase 6).
 
 An independent hand evaluation (ATM series of Φ) gives 1.11664 and 1.70105; consistent, but not a source.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **Black-76 is Black–Scholes on the forward.** Under the T-forward measure the forward has no drift, so all carry
    (rates, dividends, repo) lives in $F$ and $DF$. Option value then depends only on moneyness relative to the forward

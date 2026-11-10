@@ -5,7 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "qpricer"
 version = "0.1.0"
-description = "Multi-model option pricer (BSM, Heston, SABR) with SPX vol-surface calibration"
+description = "Multi-model option pricer (Black-76, Heston, SABR) for vanilla and exotic options, with SPX implied-vol calibration and Monte Carlo vs closed-form benchmarks"
+readme = "README.md"
+authors = [{name = "Emanuele Renzoni"}]
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.26", "scipy>=1.11", "pandas>=2.0", "matplotlib>=3.8", "pyarrow>=14", "yfinance>=0.2.40"]
 

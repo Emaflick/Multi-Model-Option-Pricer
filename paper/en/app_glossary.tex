@@ -1,0 +1,131 @@
+\chapter{Glossary}
+\label{app:glossario}
+
+This table collects the technical terms used in the text, with a short definition and, where useful, the chapter in
+which the term is introduced. The terms are in alphabetical order.
+
+\markright{\MakeUppercase{Glossary}}
+\begin{small}
+\renewcommand{\arraystretch}{1.1}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.30\textwidth}%
+  >{\raggedright\arraybackslash}p{0.66\textwidth}@{}}
+\toprule
+\textbf{Term} & \textbf{Short meaning}\\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Term} & \textbf{Short meaning}\\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+AM / PM settlement & payoff fixed at the open / at the close of the expiry day\\
+antithetic variates & using $Z$ and $-Z$ in pairs to reduce the variance\\
+arbitrage & riskless profit at zero cost\\
+Asian option & payoff on the average of the prices observed at fixed dates\\
+asymptotic expansion & approximation valid when a parameter is small\\
+at the money (ATM) & strike equal (or close) to the forward\\
+autocallable & note redeemed early if the underlying is above a threshold on an observation date (Chapter~\ref{cap:autocallable})\\
+backbone & how the ATM volatility moves when the forward moves (SABR)\\
+barrier & level that activates (knock-in) or extinguishes (knock-out) the option (Chapter~\ref{cap:barriere})\\
+bias & difference between the expected value of an estimator and the true value\\
+bid / ask & price at which the market buys / sells\\
+box spread & two vertical spreads (call and put) that pay $K_2-K_1$ at expiry: a riskless loan\\
+Brownian bridge & Brownian motion conditioned on the endpoints of an interval\\
+butterfly arbitrage & price not convex in $K$ (negative density)\\
+calendar arbitrage & total variance decreasing in $T$\\
+calibration & choice of the parameters that reproduce the market prices (Chapter~\ref{cap:calibrazione})\\
+catastrophic cancellation & loss of digits in the difference of two nearby numbers\\
+characteristic function (CF) & $\E e^{iuX}$\\
+common random numbers (CRN) & same scenarios for two estimates, to measure their difference\\
+conditioning, condition number & sensitivity of the solution to small errors in the inputs\\
+continuity correction (BGK) & barrier shift that makes the continuous formula suitable for discrete monitoring\\
+continuous / discrete monitoring & barrier observed at all times / only at fixed dates\\
+control variate & variable with known mean used to reduce the SE\\
+COS method & price from a cosine-series expansion of the density (Chapter~\ref{cap:heston})\\
+cost & half the sum of the squared residuals\\
+coupon & periodic payment\\
+cumulants & coefficients of the expansion of the logarithm of the characteristic function\\
+delta band & quotes between the 5\% delta put and the 5\% delta call, used in the calibration\\
+delta method & variance of a function of estimates by linearization\\
+digital, binary & pays 1 if an event occurs\\
+discount factor (DF) & today's value of 1 paid at $T$\\
+early redemption, autocall & automatic termination of the product\\
+Euler scheme & the simplest discretization of an SDE\\
+expiry, maturity & final date\\
+fallback & backup method used when the main one fails\\
+Feller condition & $2\kappa\theta\ge\xi^2$: the Heston variance does not reach zero\\
+finite differences & approximation of a derivative by difference quotients\\
+first passage & first time a process hits a level\\
+fixing & observation of the price on a set date\\
+floor & imposed minimum value (for example on the half-spread)\\
+forward & price for future delivery at zero cost\\
+forward measure & probability measure with the zero-coupon bond as numéraire\\
+forward skew & skew implied by options that start at a future date\\
+full truncation & Euler scheme with $v^+$\\
+Greeks & derivatives of the price with respect to the inputs\\
+Hagan's formula & asymptotic expansion of the SABR implied volatility (Chapter~\ref{cap:sabr})\\
+half-spread & half the distance between bid and ask, in price or in volatility\\
+hedge & position that neutralizes a risk\\
+implied volatility (IV) & the $\sigma$ that reproduces the price in Black's formula\\
+in band & quote that passes the calibration filters\\
+in the money (ITM) & option with positive intrinsic value\\
+intrinsic value & payoff if exercised immediately\\
+Jacobian & matrix of the derivatives of the residuals with respect to the parameters\\
+leptokurtic & with tails heavier than the normal\\
+leverage effect & negative correlation between price and volatility\\
+Lewis formula & price as a Fourier integral on the line $\operatorname{Im}u=\tfrac12$\\
+log-log slope & estimated exponent of a power law, such as $\SE\propto N^{-1/2}$\\
+log-moneyness & $\ln(K/F)$ or $\ln(F/K)$\\
+loss of martingality & $\E[F_T]<F_0$ because the process is only a local martingale\\
+martingale & process whose expected future value is today's value\\
+mean reversion & tendency of the variance to return to its long-run level\\
+model error & distance between model and market that no parameter removes\\
+moment explosion & moment $\E[F_T^p]$ infinite for $p$ beyond a threshold\\
+multi-start & several optimizations from different starting points\\
+nonlinear least squares & minimum of the sum of squares of residuals that are nonlinear in the parameters\\
+numéraire & reference asset in which prices are expressed\\
+objective function & quantity minimized by the calibration\\
+open interest & number of contracts still open\\
+option chain & list of all the options quoted on an underlying\\
+oracle & independent reference value against which a result is checked\\
+out of sample & data not used in the estimation, on which the error is measured\\
+out of the money (OTM) & option with zero intrinsic value\\
+par coupon & coupon that makes the price of the product equal to the notional\\
+peak vega & maximum of the issuer's vega on an autocallable, slightly above the put barrier\\
+put--call parity & $C-P=\DF(F-K)$\\
+QE / QE-M scheme & quadratic-exponential (martingale) scheme: Andersen's simulation of the Heston variance (Chapter~\ref{cap:mc})\\
+quasi-Monte Carlo (Sobol') & low-discrepancy points instead of pseudo-random numbers\\
+randomized QMC (RQMC) & QMC with random scrambling, to obtain a standard error\\
+rebate & amount paid when a barrier extinguishes the option\\
+reflection principle & symmetry of Brownian motion after the first passage\\
+residual & weighted difference between model and market on a quote\\
+Richardson extrapolation & combination of two steps that cancels the leading error term\\
+risk-neutral density & $\partial^2C/\partial K^2$ divided by $\DF$ (Breeden--Litzenberger)\\
+risk-neutral measure & probability measure with the bank account as numéraire\\
+round trip & price $\to$ implied volatility $\to$ price; measures the error of the inversion\\
+settlement & computation and payment of the payoff\\
+smile, skew & shape of the implied volatility in $K$\\
+snapshot & picture of the prices at a given instant\\
+stale quote & price that has not been updated\\
+standard error (SE) & standard deviation of an estimate\\
+static arbitrage & arbitrage achievable with a fixed portfolio of options\\
+step halving & comparison between $\Delta t$ and $\Delta t/2$ to measure the discretization bias\\
+strike & exercise price\\
+term sheet & document that sets the rules of a structured product\\
+term structure & dependence on $T$\\
+thinning & choice of a subset of well-spaced quotes\\
+time value & price minus intrinsic value\\
+total variance & $w=\sigma^2T$\\
+total volatility & $s=\sigma\sqrt T$\\
+trust region & region around the current point in which the quadratic model is trusted\\
+unit in the last place (ulp) & distance between two consecutive machine numbers\\
+variance reduction & techniques that lower the SE for the same number of paths\\
+vertical spread & call (or put) bought and sold at two different strikes\\
+vol-of-vol & volatility of volatility ($\xi$, $\nu$)\\
+weak order & rate at which the error in the expected value goes to zero with $\Delta t$\\
+weeklies & options with closely spaced expiries, every week or more often\\
+wing & part of the smile far from the money (very low or very high strikes)\\
+work-normalized efficiency & variance reduction divided by the ratio of computing times\\
+\end{longtable}
+\end{small}

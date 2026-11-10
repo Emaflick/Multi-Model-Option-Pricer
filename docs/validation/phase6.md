@@ -163,7 +163,7 @@ No blockers. Both ROADMAP gates pass, and my independent references, estimators 
      `control_variate`.
    - Everything else I probed behaves correctly: T = 1e-6 BSM and T = 1e-4 Heston (n_steps = 1), ρ = −0.99, ρ = +0.9
      with ξ = 1.65, ξ = 1e-6, Sobol' with 1 point per scramble, and the invalid-N errors.
-10. **Minor (size, carried forward).** `src/` is 2644 lines (vr.py +162), against the ≲ 1500 target. Owner decision,
+10. **Minor (size, carried forward).** `src/` is 2644 lines (vr.py +162), against the ≲ 1500 target. Author's decision,
     as in Phases 4 and 5.
 
 **Observation (not a finding).** My Heston noise-slope means (−0.479 to −0.489, 6 trials each) sit slightly above

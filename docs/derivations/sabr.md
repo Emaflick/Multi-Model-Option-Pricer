@@ -122,7 +122,7 @@ off the plots as ≈3%, 9%, 15% and 21% at T = 2.5, 5, 7.5 and 10 y ($\nu^2T$ = 
 
 ## 3. Derivation
 
-**3.1 Leading term (interview version; matches [H02] (B.21a), (B.36a) and the exact short-time limit of Berestycki–Busca–Florent, per
+**3.1 Leading term (heuristic version; matches [H02] (B.21a), (B.36a) and the exact short-time limit of Berestycki–Busca–Florent, per
 [O08]).** Measure the distance to the strike in units of the current vol, $u_t=\ln(F_t/K)/\alpha_t$. By Itô, $du=dW-\nu u\,dZ+O(dt)$, so
 $d\langle u\rangle/dt=1-2\rho\nu u+\nu^2u^2=D(\nu u)^2$. This is the only place ρ and ν enter at leading order; [H02] (B.25) notes that α itself only enters
 at $O(\varepsilon)$. Over short times, the probability of travelling from $u_0$ to the strike ($u=0$) is $\sim e^{-d^2/2T}$, with distance
@@ -230,7 +230,7 @@ vol pts, with ±3SE_σ bands and the gate box (T ≤ 1, |k| ≤ 0.2) marked. Bot
 (step $10^{-3}F$), with $p<0$ shaded. Write max |error| per panel to CSV. Expected qualitatively (from §2.4): error grows with $\nu^2T$ and $|k|$, and is
 largest at low strikes.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **What SABR's smile is.** It is Black with a random vol correlated with the forward. The implied vol at a strike is roughly the vol seen
    along the most likely route to that strike. With negative correlation, going down means vol goes up, which makes the skew, set by

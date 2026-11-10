@@ -205,7 +205,7 @@ $\hat c$. A CV reduces noise; it never removes the bias of the scheme.
   Fu–Madan–Wang (1999) are **continuous**-averaging benchmarks and are not valid for discrete fixings, except as $n\to\infty$ limits (not accessed).
   No published Heston discrete arithmetic Asian value was found.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **An Asian is an option on an average of fixings, priced off the forward curve.** Each fixing has its own forward, and the
    expected average is the average of those forwards, so carry and dividend timing matter, not just the terminal forward.

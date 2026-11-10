@@ -222,7 +222,7 @@ Tab. 2.2 ($m=5$): $H$=95: 4.398 / 5.646 / 5.671; $H$=99: 1.171 / 4.050 / 4.489. 
 reproduced identically in Kou (2003) Tab. 2.1 (2 sources): $H$=155: 12.775 / 12.905 / 12.894; 140: 10.144 / 10.581 / 10.551; 125: 4.012 / 4.649 /
 4.616; 115: 0.545 / 0.819 / 0.807. The continuous columns are zero-rebate RR oracles at $b\ne0$ (tolerance $5\cdot10^{-4}$).
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **In + out = vanilla, and the knock-in is a mirror image.** On every path exactly one of the pair pays, so together they are the
    vanilla, in any model; the MC must reproduce this to round-off. Reflect a path at the barrier: with zero carry, a down-and-in call

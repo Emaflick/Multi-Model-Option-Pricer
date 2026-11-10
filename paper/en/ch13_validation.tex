@@ -1,0 +1,431 @@
+\chapter{How the results are verified}
+\label{cap:validazione}
+
+A price is useful only if one knows \emph{why} it is right. This chapter closes this document by gathering in one place the
+verification method used throughout the project, the results of each phase, the cases in which verification found an
+error, the limitations that remain open and the commands to redo everything from scratch.
+
+\section{The verification principles}
+\subsection{Four kinds of evidence}
+Each phase of the project is considered complete only when its \emph{gates} pass: numerical checks with a tolerance
+fixed in advance. The gates are of four kinds.
+\begin{enumerate}
+\item \textbf{Two independent methods agree} within a stated tolerance: closed form against Fourier against Monte
+Carlo, COS against Lewis, Brownian bridge against the reflection principle. ``Independent'' means that they do not
+share approximations: if they are wrong, they are wrong in different ways.
+\item \textbf{Limiting cases reproduce a simpler model}: Heston with $\xi\to0$ gives Black, SABR with $\nu\to0$ gives
+a flat volatility, an Asian with a single fixing is a vanilla, Heston with $\xi=10^{-4}$ prices barriers and
+autocallables like Black.
+\item \textbf{No-arbitrage identities hold}: put--call parity, knock-in plus knock-out equals vanilla, monotonicity and
+convexity in $K$, absence of calendar arbitrage.
+\item \textbf{Monte Carlo comparisons are expressed in standard errors}: a test passes if $|z|\le3$ (Chapter~\ref{cap:mc}), and the error must fall as $N^{-1/2}$ (Chapter~\ref{cap:benchmark}).
+\end{enumerate}
+
+\subsection{Multiple tests and false alarms}
+A ``3 SE'' test fails with correct code with probability $0.27\%$. With $m$ independent tests the probability of at
+least one false alarm is $1-0.9973^m$ \eqref{eq:test-multipli}: about 5\% for $m=20$, 16\% for $m=66$. The project
+follows three rules.
+\begin{itemize}
+\item \textbf{The false-alarm rate is written down in advance.} In this way an isolated failure between 3 and 3.5 SE is
+read as expected multiplicity and diagnosed, instead of being ``fixed'' by changing the seed.
+\item \textbf{Seeds are fixed and declared in advance.} Changing the seed until the test passes is equivalent to
+loosening the tolerance.
+\item \textbf{The actual rate is measured.} When the tests are correlated or the reference is approximate, the formula
+$1-0.9973^m$ does not hold: the gate is repeated with many fresh seeds and the failures are counted. For SABR, for
+example, 100 fresh seeds on 21 comparisons give 4.0\% of failed seeds.
+\end{itemize}
+
+\subsection{Tolerances fixed and never loosened}
+The hard rules are few.
+\begin{itemize}
+\item A tolerance is never loosened, a test is never skipped, an input is never tweaked to make a test pass.
+\item If a test fails, the mathematics is suspected first (conventions, signs, measure), then the code, and the test
+last.
+\item If the test itself is ill-posed (Section~\ref{sec:val-lezioni} shows two such cases), it is replaced with a check
+that is \emph{at least as strict}, and the replacement is documented.
+\item No number is written by hand: every number comes from a script in the repository and can be regenerated.
+Synthetic data are always labelled as such.
+\end{itemize}
+
+\subsection{Independent reimplementation}
+The strongest guarantee comes from a second verification, separate from the development of the code. For each phase an
+independent check:
+\begin{itemize}
+\item read the mathematical specification, not the code under verification;
+\item wrote its own reference code, which imports nothing from the library: its own Black formula, its own Heston
+characteristic function with Gil-Pelaez or Lewis, its own \mbox{QE-M} scheme with a different ordering of the random
+numbers, its own settlement-time computation, its own parity regression;
+\item used its own seeds, declared in advance and never changed after seeing a result;
+\item left a test \emph{deliberately failing} for each defect found, as a reproduction, until the defect was fixed.
+\end{itemize}
+These tests live in \path{tests/validation/} and are part of the full suite. The reference values produced in this
+way, with their source stated, are frozen in \path{tests/golden/} and are never modified.
+
+\begin{attenzione}[title={The tautological test}]
+A test that cannot fail verifies nothing. The typical examples are computing the put from the call by parity and then
+``verifying'' parity, or defining the knock-in as vanilla minus knock-out and then ``verifying'' that the sum gives the
+vanilla. The project prices the two legs with separate calls and compares different engines. Section~\ref{sec:val-lezioni} recounts two tautological gates that slipped through the first draft and were found by the
+independent check.
+\end{attenzione}
+
+\section{The results, phase by phase}
+Table~\ref{tab:val-gate} lists all the gates, with the \emph{final} measured value, that is, after the fixes described
+in Section~\ref{sec:val-lezioni}. The ``reported'' rows are documented measurements without a threshold. The phases
+are:
+\begin{itemize}[leftmargin=4.2em,labelwidth=3.4em,labelsep=0.8em,align=left]
+\item[Phase 0] SPX data: cleaning, $F$ and $\DF$ from parity (Chapter~\ref{cap:dati});
+\item[Phase 1] Black-76: price, Greeks, implied volatility (Chapter~\ref{cap:black});
+\item[Phase 2] Heston: COS, Lewis, Monte Carlo (Chapters~\ref{cap:heston} and~\ref{cap:mc});
+\item[Phase 3] SABR (Chapter~\ref{cap:sabr});
+\item[Phase 4] exotics: barriers, Asians, autocallables (Chapters~\ref{cap:barriere}--\ref{cap:autocallable});
+\item[Phase 5] calibration to the SPX (Chapter~\ref{cap:calibrazione});
+\item[Phase 6] Monte Carlo versus formulas benchmark (Chapter~\ref{cap:benchmark}).
+\end{itemize}
+
+{\small
+\setlength{\LTcapwidth}{\textwidth}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{6.2cm}>{\raggedright\arraybackslash}p{4.6cm}
+>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{1.1cm}@{}}
+\caption{All the project gates with the final measured value.}\label{tab:val-gate}\\
+\toprule
+gate & measured & tolerance & result\\
+\midrule
+\endfirsthead
+\toprule
+gate & measured & tolerance & result\\
+\midrule
+\endhead
+\midrule
+\multicolumn{4}{r}{\emph{continued}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\multicolumn{4}{@{}l}{\textbf{Phase 0: SPX data}}\\
+$R^2$ of the parity line, every kept expiry & min 0.999941 (39 of 39) & $>0.999$ & pass\\
+Expiry failing the filters: discarded and logged & only \mbox{2026-12-08} (7 pairs) & discard + log & pass\\
+Implied $\DF$, every kept expiry & $[0.923895,\,0.998395]$ & $(0.8,1]$ & pass\\
+$T$ (ACT/365F, settlement times, early closes) against independent clock
+& $\max|\Delta T|=0$ on 40 expiries & $10^{-12}$ & pass\\
+Second method (L1 regression, no discards) & $\max|\Delta F|/\SE_F=1.87$ & $<3$ & pass\\
+Calibration surface free of strict static arbitrage & 0 (7650 $\to$ 7625 quotes) & 0 & pass\\
+AM against PM forwards on the common dates & 0.27 index points & $<0.4$ & pass\\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Phase 1: Black-76}}\\
+Put--call parity, $K/F\in[0.25,4]$ & $1.14\times10^{-13}$ & $10^{-12}$ & pass\\
+Implied volatility, round trip (OTM input) & $1.07\times10^{-14}$ & $10^{-10}$ & pass\\
+Implied volatility, round trip (ITM input) & $8.23\times10^{-13}$ & $10^{-10}$ & pass\\
+Delta and vega against finite differences & $\le2.96\times10^{-7}$ & $10^{-5}$ & pass\\
+OTM gamma against finite differences & $9.96\times10^{-7}$ & $10^{-5}$ & pass\\
+Theta (joint bump of $T$ and $\DF$) & $1.69\times10^{-8}$ & $10^{-5}$ & pass\\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Phase 2: Heston}}\\
+COS against Lewis, 4 sets, $K\in[60,150]$, $T\in[0.1,3]$ & $1.83\times10^{-10}$ & $10^{-6}$ & pass\\
+COS against Lewis, 300 random sets $\times$ 6 expiries & 0 cells out of 1800 over threshold; max
+$3.05\times10^{-9}$ & $10^{-6}$ & pass\\
+$\xi=10^{-4}$, $\rho=0$, against Black at the integrated variance & $4.36\times10^{-8}$ & $10^{-5}$ & pass\\
+$\xi=10^{-4}$, $\rho=-0.7$, against Black plus the $\rho\xi$ term & $5.58\times10^{-8}$ & $10^{-5}$ & pass\\
+QE and QE-M against COS, 24 comparisons & $\max|z|=0.71$ & 3 & pass\\
+Same comparisons, 20 fresh seeds (480 values of $z$) & $\max|z|=2.86$; mean $-0.115$, sd 0.937 & 3 & pass\\
+Published Fang--Oosterlee value (ATM call) & $-1.6\times10^{-8}$ & reported & --\\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Phase 3: SABR}}\\
+$\nu\to0$, $\beta=1$: flat volatility $\alpha$ & $3.0\times10^{-12}$ & $10^{-10}$ & pass\\
+Hagan against MC, 21 comparisons, $\nu^2T\le0.16$ & $\max|z|=1.68$ & 3 & pass\\
+Step bias of the log-Euler scheme, $|d|/\SE_{\text{gate}}$, three expiries & max 0.080 & 0.1 & pass\\
+Order check $M(\hat V_{1/M}-\hat V_{1/2M})$ & flat within the noise & reported & --\\
+Identities of the Hagan formula (jump, symmetry, quadrature) & $\le4.7\times10^{-14}$
+& $10^{-11}$--$10^{-14}$ & pass\\
+Robustness: 100 fresh seeds $\times$ 21 comparisons & 4.0\% of seeds failed & reported & --\\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Phase 4: exotics}}\\
+Knock-in + knock-out = vanilla, 8 types, Black and Heston & $3.55\times10^{-15}$ & $10^{-12}$ & pass\\
+Barriers, bridge MC against formula, 4 configurations $\times$ 14 cells & $\max|z|=1.99$ & 3 & pass\\
+Barriers under Heston with $\xi=10^{-4}$, $\rho=0$ & $|z|=2.97$ & 3 & pass\\
+Down-and-out with $K=H$ under Heston (model-free identity) & $z=0.75$ & 3 & pass\\
+Continuous and BGK-shifted formulas against BGK tables & $4.97\times10^{-4}$ & $5\times10^{-4}$ & pass\\
+Discrete MC against exact BGK values, 13 cells & ${\max|d|/(3\SE+10^{-3})=0.54}$ & 1 & pass\\
+Haug table, 66 correctly rounded cells & $4.96\times10^{-5}$ & $5\times10^{-5}$ & pass\\
+Haug table, 6 wrong cells against independent values & $3.46\times10^{-14}$ & $10^{-10}$ & pass\\
+Geometric Asian, MC against Kemna--Vorst, 39 cells & $\max|z|=1.90$ & 3 & pass\\
+Kemna--Vorst against published table & $1.28\times10^{-4}$ & $3\times10^{-4}$ & pass\\
+Arithmetic Asian with control against published table & ${\max(|d|-3\SE)/(3\cdot10^{-4})}={-1.21}$ & 1 & pass\\
+Other Asian MC checks (means, independent seeds, $\xi=10^{-4}$) & $\max|z|=1.45$ & 3 & pass\\
+Autocallable, Black: MC against formulas & $\max|z|=1.79$ & 3 & pass\\
+Autocallable, Heston: martingale, digitals against COS, no autocall & $\max|z|=1.32$ & 3 & pass\\
+Autocallable, Heston with $\xi=10^{-4}$ against Black (same random numbers) & $|z|=0.18$ & 3 & pass\\
+Quarterly autocallable, calibrated Heston: legs against exact values & $\max|z|=0.87$ & 3 & pass\\
+\quad Heston $-$ Black difference & $-0.01869$ (SE 0.00022) & reported & --\\
+Annual autocallable, calibrated Heston: legs against exact values & $\max|z|=1.19$ & 3 & pass\\
+\quad Heston $-$ Black difference & $-0.02514$ (SE 0.00034) & reported & --\\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Phase 5: calibration}}\\
+COS at fixed $(N,L)$ against Lewis over the box, in units of market vega & $9.21\times10^{-6}$ & $10^{-5}$ & pass\\
+Short-end rate curve: identity and pairs inside the band & $\max|\text{res}|/h=0.834$ & 1 & pass\\
+Black at the market vol reproduces the price (7625 quotes) & $3.9\times10^{-13}$ & $10^{-12}$ & pass\\
+Heston synthetic round trip, no noise (two sets) & $\le4.1\times10^{-14}$ & $10^{-6}$ & pass\\
+Heston synthetic round trip, parameters within 3 SE & $\max|z|=2.42$ & 3 & pass\\
+Heston synthetic round trip, distance $D^2$ & 2.52 and 12.49 & 20.52 & pass\\
+Linearization, 64 seeds: $\mathrm{sd}(\hat p_j)/\SE_j$ & from 0.98 to 1.20 & $[0.73,1.27]$ & pass\\
+SABR synthetic round trip, 4 expiries: $D^2$ & max 5.41 & 16.27 & pass\\
+Real fit: converging starts & 16 of 16, a single basin & $\ge8$ & pass\\
+Real fit: fallbacks at the optimum, finite residuals & 0; yes & 0; yes & pass\\
+COS against Lewis at the fit, in volatility & $4.9\times10^{-13}$ & $10^{-5}$ & pass\\
+Price objective against vol objective: $|\Delta p|/\SE$ & max 0.83 & 1 & pass\\
+RMSE table & 39 rows, 0 NaN & 0 NaN & pass\\
+Real surface: strict butterflies between adjacent strikes & 0 & 0 & pass\\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{Phase 6: benchmark}}\\
+COS against Lewis, relative to the smallest SE & $7.36\times10^{-9}$ & $3.09\times10^{-5}$ & pass\\
+Slope of the error metric, 6 cases & from $-0.554$ to $-0.487$ & $[-0.6,-0.4]$ & pass\\
+Slope of the SE, 6 cases (consistency only) & from $-0.505$ to $-0.499$ & $[-0.6,-0.4]$ & pass\\
+Slopes with fresh seeds, independent check (104) & from $-0.558$ to $-0.445$ & $[-0.6,-0.4]$ & pass\\
+Plain MC within 3 SE at every $N$, 66 comparisons & $\max|z|=2.90$ & 3 & pass\\*
+Antithetics, control and Sobol' unbiased, 20 comparisons & $\max|z|=2.01$ & 3 & pass\\*
+Regeneration: sha256 hashes, configuration, stray files & 12 of 12; 0 stray & exact & pass\\
+\end{longtable}
+}
+
+\needspace{10\baselineskip}
+\begin{progetto}[title={In the qpricer project: the overall numbers}]
+\begin{itemize}
+\item The gate scripts print 28 rows for phase 4, 35 for phase 5 and 52 for phase 6, all passed.
+\item The full suite has 599 tests, all passed, none skipped or marked as an expected failure (about 18 minutes on a
+laptop, slow tests included).
+\item The code is checked with \code{ruff check} and \code{ruff format}, with no warnings.
+\end{itemize}
+\end{progetto}
+
+\section{What verification found}
+\label{sec:val-lezioni}
+The following cases are always told in the same order: the \emph{symptom} (what was seen), the \emph{cause} (why), the
+\emph{fix} (what changed). None of them was resolved by loosening a tolerance.
+
+\subsection{COS truncation}
+\begin{description}
+\item[Symptom.] With the truncation interval at 12 standard deviations, the COS error against Lewis did not fall as
+the number of series terms grew (same error with ${N=256}$ and ${N=4096}$) and missed the $10^{-6}$ gate on the FO
+($3.95\times10^{-5}$) and GS ($2.58\times10^{-6}$) sets. With the interval widened to 18 standard deviations, the four
+gate sets passed. But an independent check tried 300 random parameter sets plausible for the SPX, on 6 expiries: 413
+cells out of 1800 (22.9\%) over $10^{-6}$, up to $9.95\times10^{-2}$, and 5 of these without any warning.
+\item[Cause.] Truncation error, not series error. With $\rho<0$ the left tail of $\ln F_T$ is heavy, and the COS
+reflection term grows like $e^{-y}$ precisely there. The code's warning estimated only the series error.
+\item[Fix.] COS became \emph{self-checking}: it compares $(N,L)$ with $(2N,L+6)$ and doubles until the two estimates
+agree within $10^{-9}F$; if it does not converge by $N=2^{14}$ it warns, and it never returns a silent error. On the
+same scan: 0 cells out of 1800 over threshold, maximum error $3.05\times10^{-9}$.
+\end{description}
+
+\subsection{\texorpdfstring{The $\xi\to0$ limit was misspecified}{The xi -> 0 limit was misspecified}}
+\begin{description}
+\item[Symptom.] The gate ``with $\xi=10^{-4}$ Heston coincides with Black at the integrated variance within $10^{-5}$''
+passed at $\rho=0$ ($2.6\times10^{-8}$) and failed at $\rho=-0.7$ ($3.27\times10^{-4}$). The gap was linear in $\xi$:
+$3.27\times10^{-3}$, $3.27\times10^{-4}$, $3.25\times10^{-5}$ for $\xi=10^{-3},10^{-4},10^{-5}$.
+\item[Cause.] With $\rho\ne0$ the difference between Heston and Black is \emph{first} order in $\rho\xi$: it is the
+skew term. The gate, as written, was unreachable by any correct code: a specification error.
+\item[Fix.] The gate is run at $\rho=0$ against Black (tolerance unchanged) and at $\rho=-0.7$ against Black
+\emph{plus} the first-order term in $\rho\xi$, with the same tolerance: $4.36\times10^{-8}$ and $5.58\times10^{-8}$.
+The shortcut ``just take $\xi=10^{-7}$'' was rejected: the $\kappa\theta/\xi^2$ terms of the characteristic function
+cancel catastrophically, and one would be testing rounding instead of the model.
+\end{description}
+
+\subsection{Three hours too many: the early close}
+\begin{description}
+\item[Symptom.] For the expiry \mbox{2026-11-27} the check's independent clock disagreed with the code's $T$. The
+first comparison excluded precisely that expiry.
+\item[Cause.] 27 November 2026 is the day after Thanksgiving: the exchange closes at 13:00, and SPXW options expire at
+13:00 instead of 16:00. Three hours of error on a time to expiry of about three weeks.
+\item[Fix.] The early-close calendar (day after Thanksgiving, 3 July and 24 December when they are trading days) was
+added to the settlement-time computation. Now $T$ agrees on \emph{all} 40 expiries within $10^{-12}$, with no
+exclusions ($T=0.0570512$ for that date).
+\end{description}
+
+\subsection{\texorpdfstring{The solver that silently returned $\sigma=0$}{The solver that silently returned sigma = 0}}
+\begin{description}
+\item[Symptom.] For OTM prices below about $10^{-280}$ the implied-volatility solver returned a wrong vol, even
+$\sigma=0$, with an ``all good'' status code. Example: $V=2.162\times10^{-305}$, $F=100$, $K=100\,e^{38.5\sqrt5}$,
+$T=5$: $\hat\sigma=0$, while the true one is 1.
+\item[Cause.] The library's normal cumulative distribution function returns 0 for $d\lesssim-37.5$, even though
+$\Phi(d)$ is representable down to about $-38.5$. In that range the normalized price loses its second term, and the
+solver converges, correctly, on the wrong function. No final check rejected $\sigma=0$.
+\item[Fix.] In those cases NaN is returned with a dedicated status code and a warning. No effect on the SPX data, where
+such prices do not exist; but the rule ``never a silently wrong number'' applies everywhere.
+\end{description}
+
+\subsection{The SABR step bias at short expiries}
+\begin{description}
+\item[Symptom.] The step-halving test with common random numbers had been rightly replaced by a size check,
+$|\hat V_\Delta-\hat V_{\Delta/2}|\le0.1\,\SE_{\text{gate}}$ (Section~\ref{sec:halving}). But it had been checked only
+at $T=1$ (0.073). The independent check, with exact expected values, found 0.321 at $T=0.25$ and 0.160 at $T=0.5$,
+with a bias of $-0.0415$ vol points (0.64 SE) in the left wing.
+\item[Cause.] The step was fixed in calendar time ($\Delta=1/250$), so at $T=0.25$ there were only 63 steps. Applying
+a criterion only where it passes is loosening by omission.
+\item[Fix.] 250 steps at every expiry ($\Delta=T/250$). The ratio is now at most 0.080, 0.063 and 0.073 at the three
+expiries, and the bias is at most 0.17 SE.
+\end{description}
+
+\subsection{The wrong digits in the Haug table}
+\begin{description}
+\item[Symptom.] Six cells of the Haug barrier table (column $\sigma=0.30$) were between $5.2\times10^{-5}$ and
+$6.3\times10^{-5}$ away from the reflection formula, beyond the tolerance of $5\times10^{-5}$ (half a unit of the last
+printed digit).
+\item[Cause.] The six cells are not correctly rounded: the formula, an independent quadrature and a PDE agree with
+each other to better than $10^{-9}$. The first fix, however, had moved the \emph{whole} column to $10^{-4}$: this
+loosened the tolerance also for 30 cells that passed at $5\times10^{-5}$.
+\item[Fix.] Cells handled one by one: the 66 correct ones stay at $5\times10^{-5}$ (maximum $4.96\times10^{-5}$), the
+6 wrong ones are compared with independently computed reference values at $10^{-10}$ ($3.46\times10^{-14}$). No
+tolerance was loosened.
+\end{description}
+
+\subsection{The default grid of the Asians under Heston}
+\begin{description}
+\item[Symptom.] With quarterly fixings under Heston, the default Asian price differed from the one with step $1/32$
+by $z=-2.6$, $-3.6$ and $+5.9$ at $K=90$, 100 and 110 ($+0.0133$, that is 1.3\%, at $K=110$; $3\times10^6$ paths).
+\item[Cause.] By default the code took a single QE-M step per fixing period (a quarter of a year), against the project
+rule of a step of at most $1/32$.
+\item[Fix.] Maximum step $1/32$ by default, as already for the autocallables; with $2\times10^6$ paths the three $z$
+become $-1.08$, $-1.25$ and $-1.14$. The coarse grid remains available only if explicitly requested.
+\end{description}
+
+\subsection{The tautological gate}
+\begin{description}
+\item[Symptom.] In the attribution of the autocallable Heston--Black difference (Chapter~\ref{cap:autocallable}), a
+gate required the three terms to add up to the total difference within $10^{-12}$. It always passed.
+\item[Cause.] The third term was \emph{defined} as the residual difference, so the sum equalled the total by
+construction: that half of the gate could not fail.
+\item[Fix.] The identity was replaced by real checks: each leg against an exact value within 3 SE (maximum $|z|$ 0.87
+and 1.19). The total difference and the three terms were also recomputed independently (for example exact Black
+1.014493 against MC 1.014530, $z=0.40$). The same kind of problem surfaced in the benchmark: the slopes fitted on the
+SE are $-0.5$ by construction and were downgraded to a consistency check (Chapter~\ref{cap:benchmark}).
+\end{description}
+
+\begin{idea}[title={Key idea: what these cases teach}]
+Almost all the defects found lay \emph{outside} the test cases chosen at the start: random parameters instead of the
+four literature sets, the expiry excluded from the comparison, the extreme price, the short expiry, the default
+setting. A gate says something only about the domain on which it was tried; widening the domain is the most effective
+way to find errors.
+\end{idea}
+
+\section{Known limitations and open points}
+\label{sec:val-limiti}
+\begin{itemize}
+\item \textbf{Published Heston values not reproduced (Albrecher and coauthors).} Lewis and COS, which agree with each
+other, differ from the published ATM calls on the FO set by $+0.0043$, $+0.0073$, $-0.0007$, $+0.0052$ and $+0.0019$
+at $T=1,2,3,5,10$, against a stated accuracy of 0.005: two expiries miss it. It is not a convention (no single rate
+reproduces them all). The most likely explanation is that the authors used unrounded parameters: rounding the five
+printed parameters by half a unit moves the prices by more than the stated accuracy. The same characteristic function
+reproduces other published values to $1.6\times10^{-8}$ or better. These values are not used as binding tests.
+\item \textbf{Autocallable of Deng and coauthors, case 2, not reproduced.} Published value 98.39; the project MC gives
+97.508 (SE 0.009) and an independent exact backward induction 97.507: about 100 SE apart. Case 1 and the published
+first-redemption probabilities are reproduced ($\max|z|=2.11$). The cause is unknown (perhaps a different coupon or
+protection convention, perhaps the finite-difference error of the original paper). Nothing was tweaked to make it
+match, and the value is not used as a reference.
+\item \textbf{Implied volatility from deep ITM quotes.} Outside the test domain, for ITM quotes with $3<|z|<7.5$, the
+solver returns a vol with an error of up to $2\times10^{-4}$ without flagging it. It is the conditioning limit of the
+input: an ITM quote carries its time value only down to $\varepsilon\max(F,K)$. No effect on the results, because only
+OTM quotes are inverted (error $\le10^{-14}$).
+\item \textbf{SABR outside the validated domain.} Hagan was compared with MC only for $\nu^2T\le0.16$. All 39
+expiry-by-expiry SABR fits have $\nu^2T$ between 0.352 and 0.890, and with $\nu\approx1$ Hagan is off by $+0.40$ vol
+points ($T=0.5$) and $+0.82$ ($T=1$) at $k=-0.2$. Those smiles should be read as Hagan parametrizations, not as SABR
+dynamics (Chapter~\ref{cap:sabr}).
+\item \textbf{Heston does not fit the short expiries.} Out of sample ($T<0.1$, 18 expiries) the aggregate RMSE is
+1.379 vol points (0.832--2.093 per expiry), with a maximum deviation of 6.29 points on the shortest expiry. It is
+structural: the Heston skew does not grow enough as $T\to0$ (Section~\ref{sec:cal-skew}).
+\item \textbf{Curvature SEs underestimate model risk.} The residuals are about 2.7 half-spreads ($s^2=7.37$), and
+changing the expiry window moves $\kappa$ and $\xi$ by about 13 SE. The parameter uncertainty should therefore be read
+from the range of the variants, not from $\pm\SE$ (Chapter~\ref{cap:calibrazione}).
+\item \textbf{Reference level of the autocallable.} The level $S_{\text{ref}}$ still uses the parity $\DF$ of the
+first expiry, not the smooth curve: $+0.074\%$ on the level (from 7374.425 to 7379.918). The estimated effect on the
+quarterly Heston--Black difference is $-8\times10^{-5}$, about 0.4 SE. It is a minor point, not yet fixed.
+\item \textbf{Code size.} The core in \path{src/} has 2644 lines, against an initial target of about 1500. Modules
+already validated were not rewritten to shorten them, so as not to invalidate their verification.
+\item \textbf{Sobol' and single-run tests.} The SE from 16 scramblings is calibrated on average, but its $t$ statistic
+has heavy tails: no ``3 SE'' test on a single Sobol' run (Chapter~\ref{cap:benchmark}).
+\end{itemize}
+
+\section{Reproducibility}
+\subsection{The data}
+The raw snapshot of the SPX option chain (6 November 2026, 22:13 UTC) is not distributed with the repository: it is a
+file excluded from version control. What is distributed are the processed files in \path{data/processed/}: the table
+of $F$ and $\DF$, the cleaning counts, the OTM surface, the quotes removed for arbitrage and the calibrated Heston
+parameters.
+
+Two levels of reproducibility follow.
+\begin{itemize}
+\item Everything that starts from the processed files (benchmark, exotics, SABR and Heston figures) is regenerated
+identically.
+\item What starts from the raw quotes (market construction, calibration, tests on real data) requires the snapshot.
+Without it one can download a new one; the numbers will be those of a different market day. The tests on real data,
+if the snapshot is missing, fail instead of being skipped.
+\end{itemize}
+
+\subsection{The commands}
+From the repository root, with the project's virtual environment (\code{.venv/bin/python}, abbreviated here to
+\code{python}):
+{\small
+\begin{verbatim}
+# data (optional: requires the network, produces a new snapshot)
+python scripts/fetch_spx.py
+python scripts/build_market.py
+
+# gates of each phase
+python scripts/phase1_gates.py      # ... up to
+python scripts/phase6_gates.py
+
+# results and figures
+python scripts/run_calibration.py --workers 8
+python scripts/autocall_compare.py \
+    --heston-params data/processed/heston_fit_20261106_2213.json
+python scripts/exotics_figures.py
+python scripts/sabr_degradation.py
+python scripts/heston_euler_bias.py
+python scripts/run_benchmarks.py --workers 8
+
+# tests
+pytest -m "not slow" -q             # fast
+pytest -q                           # all
+\end{verbatim}
+}
+
+Practical notes.
+\begin{itemize}
+\item Every Monte Carlo script uses fixed seeds written in the code: re-running it gives the same numbers bit for bit,
+regardless of the number of processes.
+\item Computing times (and only those) change from one run to another and from one machine to another.
+\item The independent checks are in \path{tests/validation/}; run directly, each file prints the numbers it checked.
+\end{itemize}
+
+\section{The development method}
+The code was generated with a pipeline of artificial-intelligence agents (Claude Code). The author specified the
+project (models, products, conventions, acceptance criteria) and supervised the mathematics and the validation. No
+result rests on trust in the generator: every reported number is produced by a script in the repository, is covered
+by automated tests with tolerances fixed in advance, and was rechecked by independent reimplementations that share no
+code with the library.
+
+\begin{riassunto}
+\begin{itemize}
+\item Four kinds of evidence: two independent methods, limiting cases, no-arbitrage identities, Monte Carlo in SE
+units. False-alarm rate declared in advance, fixed seeds, tolerances never loosened.
+\item Each phase was rechecked by a separate verification with its own reference code; all gates pass with the final
+values of Table~\ref{tab:val-gate}.
+\item Verification found eight significant problems, almost all outside the initial test cases: COS truncation,
+ill-posed $\xi\to0$ gate, early close, silent ${\sigma=0}$, SABR step bias, Haug digits, Asian grid, tautological
+gates.
+\item Still open: two published values not reproduced, implied vol from deep ITM quotes, SABR outside its domain, the
+Heston fit at the short end, curvature SEs, the autocallable reference level, 3 SE tests on a single Sobol' run, the
+code size.
+\item Everything is regenerated from scripts; only the raw snapshot is not distributed.
+\end{itemize}
+\end{riassunto}
+
+\begin{domande}
+\begin{enumerate}
+\item What are the four kinds of evidence used in the project? Give an example of each.
+\item With 66 tests at 3 SE, what is the probability of at least one false alarm with correct code? Why is it worth
+writing it down before running the tests?
+\item What is a tautological test? Give two examples and say how they are avoided.
+\item Why was the $\xi\to0$ gate unreachable for $\rho\ne0$, and why is the fix not a loosening?
+\item In the Haug table case, why was changing the tolerance of the whole column wrong, even though no error remained
+hidden?
+\item What is the difference between a gate passed on four literature sets and a gate passed on 300 random sets?
+\item Which results of the project can be regenerated without the raw snapshot, and which cannot?
+\end{enumerate}
+\end{domande}

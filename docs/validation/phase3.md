@@ -63,7 +63,7 @@ That rate is 5.0% on my seeds and 4.0% on the implementer's, which agree within 
 |---|---|---|
 | F1 Δ bias / halving criterion only checked at T = 1 | **CLOSED** | Exact halving ≤ 0.083 at every maturity (criterion 0.1); bias ≤ 0.169 SE_gate (criterion ≲ 0.2). `test_halving_dt` is parametrised over all three maturities. The reproduction test passes unchanged in strictness. *Nit, non-blocking:* D-023 (ii) and the sabr.md (18) erratum say "Richardson bias ≤ 0.16 SE_gate", but the exact bias is 0.164 (T = 0.25) and 0.169 (T = 0.5). D-023's T = 0.5 values (0.063, −0.0073 vol pt) are single-seed CRN estimates about 25% below the exact 0.083 and −0.0098. Suggest "≤ 0.17 SE_gate" and quoting the exact values. |
 | F2 false-fail rate | **CLOSED** | The iid 5.5% claim is withdrawn in D-023 and sabr.md §5. The documented 4.0% matches my independent 5.0% within binomial error. *Nit:* the documented 0.29% per comparison is at the low end; the exact offsets predict 0.52%, and my seeds give 0.67%. |
-| F3 gate domain | **CLOSED** (documentation) | "Domain: set G, ν²T ≤ 0.16" appears in D-023 (ii), sabr.md §5, the `test_gate_hagan_vs_mc_within_3se` docstring and the gate printout of `phase3_gates.py`. The F3 example (ν = 1, T = 0.5: +0.40 vol pt, 5.4 SE) matches my output (+0.403, 5.42 SE). The ROADMAP wording itself is unchanged (owner's file); the Phase 7 report must carry the domain. |
+| F3 gate domain | **CLOSED** (documentation) | "Domain: set G, ν²T ≤ 0.16" appears in D-023 (ii), sabr.md §5, the `test_gate_hagan_vs_mc_within_3se` docstring and the gate printout of `phase3_gates.py`. The F3 example (ν = 1, T = 0.5: +0.40 vol pt, 5.4 SE) matches my output (+0.403, 5.42 SE). The ROADMAP wording itself is unchanged (author's file); the Phase 7 report must carry the domain. |
 | F4 ρ > 0 parity | **CLOSED** | The `mc_price` docstring, the sabr.md §3.4 erratum, pitfall 8 and D-023 (v) all say parity with F and Euler calls are the model's only for ρ ≤ 0. The −0.167 they quote matches my −0.1668 ± 0.0003 (the second method gives −0.1620 ± 0.0016). |
 | F5 CHK row 5 | **CLOSED** | The sabr.md erratum says ν = 0.6, two-method value 0.0781203, published off by ≈ +1.0e-5. This matches my RQMC 0.0781203 and PDE 0.0781204. |
 | F6 `alpha_from_atm` ceiling / b < 0 cancellation | **OPEN — deferred to Phase 5** (coordinator) | Code unchanged; my two tests document the current behaviour and pass. |
@@ -108,7 +108,7 @@ warning). `ruff check src tests scripts` and `ruff format --check src tests scri
   α = 0.3, ρ = +0.5, ν = 1, T = 5, E F_T / F − 1 = −0.167. Two independent methods agree on this. The note (§3.4,
   pitfall 8) presents parity with F as exact. The `mc_price` docstring does not warn that, for ρ > 0, its "euler" and
   "mixing" calls have different expectations. Severity: minor (SPX has ρ < 0), but a
-  likely interview question.
+  subtle point worth stating explicitly.
 * **F5: CHK Table 1 row 5.** It is ν = 0.6, not 0.8. The published 0.07811 misses my two-method value 0.0781203 by
   1.0e-5, which is outside its own rounding. Rows 1–4 are reproduced within rounding (≤ 3.6e-6).
 * Full suite (`.venv/bin/pytest -q`): **420 passed, 1 failed** (the F1 reproduction only). `ruff check` and `ruff
@@ -236,7 +236,7 @@ correction.*
 - In practice the Euler sample mean of F̂_T lands below F, because the missing mass sits in paths that are never
   sampled. So the error shows up as an unreliable SE rather than a visible bias.
 - *Fix:* restrict "parity with F" and raw Euler calls to ρ ≤ 0 in the note (§3.4, pitfall 8), and say so in the
-  `mc_price` docstring. Add the interview line: "for ρ > 0, β = 1 SABR calls ≠ puts + F − K; implied vols from calls and puts differ".
+  `mc_price` docstring. Add the remark: "for ρ > 0, β = 1 SABR calls ≠ puts + F − K; implied vols from calls and puts differ".
 
 **F5. Published [CHK] Table 1 values.** *Minor (oracle provenance).*
 
@@ -251,7 +251,7 @@ correction.*
 
 - The "UNVERIFIED" row resolves to ν = 0.6 (the table, not the text).
 - Its published value is 2x outside its 5-decimal rounding against two independent methods that agree to 1e-7.
-- *Fix (note owner):* mark row 5 as ν = 0.6 with a published error of ≈ 1e-5.
+- *Fix (note author):* mark row 5 as ν = 0.6 with a published error of ≈ 1e-5.
 - The note's hand evaluations of Hagan (0.079101, 0.079424, 0.079698, 0.078630) are confirmed.
 
 **F6. `alpha_from_atm`.** *Minor; Phase 5 advisory.*
@@ -319,7 +319,7 @@ affect any other verdict.
    - It is also 2x looser than the note's own design target, eq. (18) (bias ≤ 0.1 SE rather than ≤ 0.2 SE).
    - Verdict: **a loosening by selective application, not by intent** (F1). The fix is cheap and verified.
 
-## Recommended fixes (owner: implementer unless stated)
+## Recommended fixes (assigned to the implementer unless stated)
 
 1. (F1) Use n_steps = 250 at every gate maturity in `tests/test_sabr.py`, `scripts/phase3_gates.py` and (for the Euler
    overlay) the figure. Extend `test_halving_dt` to all three maturities. Restate D-023 (ii) and OPEN_ISSUES per
@@ -327,7 +327,7 @@ affect any other verdict.
 2. (F2, F3) In D-023 / sabr.md §5 / the report, state the measured fresh-seed false-fail rate (≈ 9%). State the gate
    domain as "set G, ν²T ≤ 0.16", and add the F3 table, or a pointer to it, next to the figure.
 3. (F4) Note §3.4 and pitfall 8, plus the `mc_price` docstring: "parity with F is the model's only for ρ ≤ 0".
-4. (F5, note owner) CHK row 5: ν = 0.6, published value off by ≈ 1e-5.
+4. (F5, note author) CHK row 5: ν = 0.6, published value off by ≈ 1e-5.
 5. (F6) Phase 5 loss: handle the NaN that `alpha_from_atm` returns above the ceiling b²/(4|a|). Optional: use the
    b < 0 root form.
 6. (F7) Optional cosmetics: integer check on n_steps; quote the `_significant` summary column.

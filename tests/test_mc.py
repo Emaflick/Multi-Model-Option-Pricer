@@ -26,7 +26,7 @@ def within_3se(est, se, ref):
 
 # ------------------------------------------------------------------ API and exact identities
 def test_api_contract_and_reproducibility():
-    """CLAUDE.md: MC returns (price, stderr, n_paths, seed); same seed -> bit-identical."""
+    """Project convention: MC returns (price, stderr, n_paths, seed); same seed -> bit-identical."""
     K = np.array([80.0, 100.0, 120.0])
     out = mc.european_price(100.0, K, 1.0, 0.9, FO, -1, n_steps=8, n_paths=4000, seed=SEED)
     price, se, n, seed = out

@@ -1,0 +1,649 @@
+\chapter{The volatility smile and the Heston model}
+\label{cap:heston}
+
+This chapter presents the Heston (1993) model: the phenomenon it must capture (the \emph{skew}), the closed-form
+characteristic function, and two independent Fourier engines, COS and Lewis. Monte Carlo is covered in
+Chapter~\ref{cap:mc}.
+
+\section{Why Black is not enough: smile and skew}
+If the Black model were correct, inverting the market prices of all options of one expiry would always return the
+same volatility. On the SPX index, this is what happens instead:
+\begin{itemize}
+\item implied volatility is \textbf{decreasing in $K$} (\emph{skew}): OTM puts are more expensive than OTM calls;
+\item the skew is \textbf{steeper at short expiries} and flattens as $T$ grows;
+\item the ATM level also varies with expiry (\emph{term structure}).
+\end{itemize}
+The function $(K,T)\mapsto\sigma_{\text{impl}}(K,T)$ is called the \textbf{implied-volatility surface}.
+
+\begin{perche}[title={Why is there a skew?}]
+Recalling Breeden--Litzenberger \eqref{eq:breeden}, a negative skew means that the market density has a
+\textbf{heavier left tail} than the lognormal: crashes are more likely than Black says.
+
+The economic mechanism is the \emph{leverage effect}: when the index falls, volatility rises. We therefore need a
+random volatility that is \emph{negatively correlated} with the price.
+\end{perche}
+
+\section{The Heston model}
+Heston makes the instantaneous variance random and correlates it with the price. It is the simplest model that
+produces the skew and still admits prices in almost closed form: the variance reverts to a long-run level, the
+negative correlation generates the leverage effect, and the \emph{affine} structure of the equations makes the
+characteristic function of the log-price known in closed form. With only five parameters the model describes the
+whole surface, that is, all expiries at once.
+
+\subsection{The dynamics}
+We work under the $T$-forward measure $\Q^T$, as in Chapter~\ref{cap:black}. With deterministic rates and carry, the
+risk-neutral Heston dynamics carry over unchanged to the forward $F_t=F(t,T)$:
+\begin{equation}\label{eq:heston}
+\begin{aligned}
+\mathrm{d}F_t&=\sqrt{v_t}\,F_t\dd W^F_t,\\
+\mathrm{d}v_t&=\kappa(\theta-v_t)\dd t+\xi\sqrt{v_t}\dd W^v_t,\qquad \dd\langle W^F,W^v\rangle_t=\rho\dd t .
+\end{aligned}
+\end{equation}
+The instantaneous \emph{variance} $v_t$ follows a Cox--Ingersoll--Ross (CIR) process, that is, a mean-reverting
+diffusion with volatility proportional to $\sqrt{v_t}$. The five parameters are summarized in
+Table~\ref{tab:heston-parametri}.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{The parameters of the Heston model and their effect on the smile.}
+\label{tab:heston-parametri}
+\begin{tabularx}{\textwidth}{@{}>{$}c<{$}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+\text{par.} & name & effect on the smile \\
+\midrule
+v_0 & initial variance & ATM level of short expiries \\
+\theta & long-run variance & ATM level of long expiries \\
+\kappa & mean-reversion speed & how fast $v$ moves from $v_0$ to $\theta$; how fast the skew flattens with $T$ \\
+\xi & volatility of variance (\emph{vol-of-vol}) & fatter tails on both sides: curvature of the smile \\
+\rho & price--variance correlation & slope: $\rho<0$ creates the negative skew \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The required domain is $\kappa-\rho\xi>0$, automatic for $\rho\le0$ (the SPX case). The code rejects other inputs:
+for $\kappa-\rho\xi\le0$ some expressions in the characteristic function become $0/0$.
+
+\subsection{Expected variance and integrated variance}
+Taking the expectation of the $v$ equation (the $\mathrm{d}W$ term has zero mean) gives an ordinary differential
+equation, $\frac{\mathrm{d}}{\mathrm{d}t}\E v_t=\kappa(\theta-\E v_t)$, with solution
+\begin{equation}\label{eq:var-attesa}
+\bar v(t):=\E v_t=\theta+(v_0-\theta)e^{-\kappa t}.
+\end{equation}
+Integrating over $[0,T]$ and setting $\tau_\kappa=(1-e^{-\kappa T})/\kappa$:
+\begin{equation}\label{eq:sigma-bar}
+\bar\Sigma:=\int_0^T\bar v(t)\dd t=\theta T+(v_0-\theta)\,\tau_\kappa .
+\end{equation}
+$\bar\Sigma$ is the ``expected total variance''. The effective volatility $\sigma_{\text{eff}}=\sqrt{\bar\Sigma/T}$
+will come back in the limit $\xi\to0$.
+
+\subsection{The Feller condition}
+The Feller ratio $\nu_F=2\kappa\theta/\xi^2$ decides whether the variance can reach zero.
+\begin{itemize}
+\item If $\nu_F\ge1$, the drift $\kappa\theta$ near 0 is strong enough to prevent it.
+\item If $\nu_F<1$, the variance hits 0 and immediately leaves it (the boundary is instantaneously reflecting).
+\end{itemize}
+\begin{attenzione}
+Realistic SPX calibrations typically \emph{violate} Feller: enough curvature requires a large $\xi$. This does
+\textbf{not} cause problems for the Fourier methods of this chapter, because the characteristic function is the same
+whether or not zero is attainable. It does, however, cause problems for Monte Carlo (Chapter~\ref{cap:mc}).
+
+Imposing Feller in calibration would spoil the fit of the short-dated skew: in the project the ratio $\nu_F$ is
+\emph{reported}, not imposed.
+\end{attenzione}
+
+\section{The Heston characteristic function}
+In Heston the density of $F_T$ is not known in closed form, but the characteristic function is, because the model is
+\textbf{affine}: the drift and the instantaneous variance are linear functions of the state $(x,v)$.
+
+\subsection{Step-by-step derivation}
+Let $X=\ln(F_T/F)$ be the log-return of the forward and $\varphi(u)=\E^T[e^{iuX}]$ its characteristic function (CF).
+In the state $x_t=\ln(F_t/F)$, by Itô, $\mathrm{d}x=-\tfrac12v\dd t+\sqrt v\dd W^F$.
+
+\textbf{Step 1 (Feynman--Kac).} The function $f(t,x,v)=\E[e^{iuX}\mid x_t=x,v_t=v]$, evaluated along the process, is a
+martingale. As in \eqref{eq:feynman-kac}, its $\mathrm{d}t$ term must vanish:
+\begin{equation}\label{eq:heston-pde}
+f_t+\tfrac12v(f_{xx}-f_x)+\kappa(\theta-v)f_v+\tfrac12\xi^2vf_{vv}+\rho\xi vf_{xv}=0,\qquad f(T,x,v)=e^{iux}.
+\end{equation}
+The cross term $\rho\xi v f_{xv}$ comes from the covariation $\mathrm{d}\langle x,v\rangle=\rho\xi v\dd t$.
+
+\textbf{Step 2 (affine ansatz).} Since the coefficients are linear in $v$, we look for an exponential-affine solution:
+\[
+f=\exp\big(iux+C(\tau)+vD(\tau)\big),\qquad \tau=T-t,\qquad C(0)=D(0)=0 .
+\]
+The derivatives are simple: $f_x=iuf$, $f_{xx}=-u^2f$, $f_v=Df$, $f_{vv}=D^2f$, $f_{xv}=iuDf$, $f_t=-(C'+vD')f$.
+
+\textbf{Step 3 (separating the terms).} Substituting and dividing by $f$, the equation becomes linear in $v$. It must
+hold for every $v$, so the constant term and the coefficient of $v$ vanish separately:
+\begin{equation}\label{eq:riccati}
+C'=\kappa\theta D,\qquad D'=\tfrac12\xi^2D^2-\beta D-\tfrac12A,
+\qquad\beta:=\kappa-i\rho\xi u,\quad A:=u^2+iu .
+\end{equation}
+The second is a \textbf{Riccati} equation (quadratic in $D$) and is solved in closed form; the first is then
+integrated directly.
+
+\textbf{Step 4 (solving the Riccati equation).} The polynomial $\tfrac12\xi^2D^2-\beta D-\tfrac12A$ has roots
+\[
+r_\pm=\frac{\beta\pm d}{\xi^2},\qquad d=\sqrt{\beta^2+\xi^2A}\quad(\mathrm{Re}\,d>0).
+\]
+Separating variables,
+\[
+\frac{\mathrm{d}D}{(D-r_+)(D-r_-)}=\tfrac12\xi^2\dd\tau ,
+\]
+and integrating by partial fractions:
+\[
+\frac1d\ln\frac{D-r_+}{D-r_-}=\tau+\frac1d\ln\frac{r_+}{r_-}.
+\]
+Solving for $D$ and setting $g=r_-/r_+=(\beta-d)/(\beta+d)$ gives the ``little trap'' form of Albrecher, Mayer,
+Schoutens and Tistaert (2007):
+\begin{align}
+D(T)&=\frac{\beta-d}{\xi^2}\,\frac{1-e^{-dT}}{1-g\,e^{-dT}},\label{eq:heston-D}\\
+C(T)&=\frac{\kappa\theta}{\xi^2}\Big[(\beta-d)T-2\operatorname{Log}\frac{1-g\,e^{-dT}}{1-g}\Big],\label{eq:heston-C}\\
+\varphi(u)&=e^{C+v_0D}.\label{eq:heston-cf}
+\end{align}
+
+\textbf{Step 5 (immediate checks).} For $u=0$ and for $u=-i$ we have $A=0$, hence $D=C=0$ and $\varphi=1$.
+\begin{itemize}
+\item $\varphi(0)=1$: it is a probability distribution.
+\item $\varphi(-i)=\E[F_T/F]=1$: the forward is a martingale.
+\end{itemize}
+
+\begin{perche}[title={Why the complex square root does not jump}]
+On the real axis and on the line $\mathrm{Im}\,u=-\tfrac12$ (used by Lewis) we have, respectively,
+\[
+\mathrm{Re}\,d^2=\kappa^2+(1-\rho^2)\xi^2u^2>0,\qquad
+\mathrm{Re}\,d^2=(\kappa-\tfrac12\rho\xi)^2+(1-\rho^2)\xi^2u^2+\tfrac14\xi^2>0 .
+\]
+
+In both cases $d^2$ never crosses the negative real half-axis, where the principal square root has its branch cut.
+Hence $d$ is continuous along the contours we use.
+\end{perche}
+
+\subsection{The ``little Heston trap''}
+The original Heston (1993) formula contains $e^{+dT}$ and $g_1=1/g$: it is obtained from the previous one by the
+substitution $d\to-d$. Algebraically it is identical to \eqref{eq:heston-D}--\eqref{eq:heston-C}, because the
+solution of the Riccati equation is unique and even in $d$. Numerically it is not.
+
+\begin{enumerate}
+\item The computer's complex logarithm (principal $\operatorname{Log}$) always returns an argument in $(-\pi,\pi]$: it
+has a \emph{branch cut} along the negative real half-axis.
+\item In the original form the argument of the logarithm behaves like $-g_1e^{dT}/(1-g_1)$, whose phase grows like
+$T\,\mathrm{Im}\,d$: as $u$ grows it spirals around the origin.
+\item Every time it crosses the cut, $\operatorname{Log}$ jumps by $2\pi i$ and $\varphi$ is multiplied by
+$e^{\mp4\pi i\kappa\theta/\xi^2}$, which differs from 1 unless $\nu_F$ is an integer.
+\end{enumerate}
+For long expiries the prices thus become \emph{silently} wrong. An example from the literature (Albrecher et
+al.\ 2007): a 10-year ATM call on the FO set, 29.83 instead of 33.84.
+
+In the little trap form, by contrast, $|e^{-dT}|<1$ and the argument of the logarithm tends to $1/(1-g)$ as
+$T\to\infty$: it never winds around zero. The original form also has a second flaw: $e^{dT}$ overflows for large
+$uT$.
+
+\subsection{The form used in the code: no subtractions, \code{log1p}}
+Equation \eqref{eq:heston-D} contains $\beta-d$, a difference of two nearly equal numbers when $\xi$ is small:
+significant digits are lost. Moreover, the logarithm in \eqref{eq:heston-C} is $\operatorname{Log}(1+O(\xi^2))$ and is
+multiplied by $2\kappa\theta/\xi^2$, which amplifies its rounding error.
+
+\textbf{Step 1.} The subtraction is removed with the identity $(\beta-d)(\beta+d)=\beta^2-d^2=-\xi^2A$:
+\[
+\beta-d=-\frac{\xi^2A}{\beta+d}.
+\]
+\textbf{Step 2.} With $e_1=1-e^{-dT}$ we define
+\[
+q=\frac{\xi^2A\,e_1}{2d(\beta+d)},\qquad\text{so that}\qquad \frac{1-g\,e^{-dT}}{1-g}=1-q .
+\]
+\textbf{Step 3.} Equations \eqref{eq:heston-D}--\eqref{eq:heston-C} become
+\begin{equation}\label{eq:heston-cf-code}
+D=-\frac{A\,e_1}{2d(1-q)},\qquad
+C=-\frac{\kappa\theta AT}{\beta+d}-\frac{2\kappa\theta}{\xi^2}\operatorname{Log}(1-q).
+\end{equation}
+\textbf{Step 4.} $\operatorname{Log}(1-q)$ is computed in real arithmetic. Writing $-q=p+is$:
+\[
+\operatorname{Log}(1+p+is)=\tfrac12\,\mathrm{log1p}(2p+p^2+s^2)+i\,\mathrm{atan2}(s,1+p).
+\]
+The function \code{log1p} computes $\ln(1+y)$ with full relative precision even for tiny $y$. In addition, $e_1$ is
+computed with \code{expm1}.
+
+\begin{progetto}
+\code{src/qpricer/models/heston.py}, function \code{cf}, implements exactly \eqref{eq:heston-cf-code}. It is the same
+function as the little trap form, with the same principal branch, but without subtractions.
+\begin{itemize}
+\item At $\xi=10^{-6}$ the CF agrees with Black's to within $10^{-10}$.
+\item An independent check integrated the Riccati equation \eqref{eq:riccati} numerically with its own Runge--Kutta
+scheme (no closed form, no branch choice). The discrepancy is $\le{1.1\times10^{-12}}$ in absolute value, up to $T=10$,
+including extreme cases ($\xi=1.5$, $\rho=+0.5$, $\rho=-0.99$, $\nu_F=0.08$).
+\item The original Heston form is kept in the tests as a \emph{negative control}: on the FO set at $T=10$ it must fail.
+\end{itemize}
+\end{progetto}
+
+\section{Fourier pricing, method 1: COS}
+\subsection{The idea}
+The price of a put is an integral of the payoff against the density $f$ of $X$:
+\[
+P=\DF\int_{\R}(K-Fe^y)^+f(y)\dd y .
+\]
+We do not know $f$, but we can approximate it with a \emph{cosine series} on an interval $[a,b]$ that holds almost all
+of the probability. The method is due to Fang and Oosterlee (2008), in the forward-centered variant of Le Floc'h
+(2020).
+
+\textbf{Step 1.} On $[a,b]$ every smooth function can be expanded in a cosine series:
+\[
+f(y)=\sum_{k\ge0}{}'A_k\cos(u_k(y-a)),\qquad u_k=\frac{k\pi}{b-a},
+\qquad A_k=\frac2{b-a}\int_a^bf(y)\cos(u_k(y-a))\dd y .
+\]
+The prime on $\sum'$ indicates that the $k=0$ term is halved.
+
+\textbf{Step 2.} The coefficient is read off the characteristic function. Since $\cos z=\mathrm{Re}\,e^{iz}$,
+\[
+A_k=\frac2{b-a}\,\mathrm{Re}\Big[\int_a^be^{iu_k(y-a)}f(y)\dd y\Big]
+\approx\frac2{b-a}\,\mathrm{Re}\big[\varphi(u_k)e^{-iu_ka}\big].
+\]
+The approximation consists in extending the integral to the whole of $\R$: the mass outside $[a,b]$ is neglected.
+
+\textbf{Step 3.} Sum and integral are swapped. The price becomes a sum of products (coefficient read off
+$\varphi$)$\times$(integral of the payoff against a cosine). The second factor is computed by hand. For the put, with
+$z=\ln(K/F)$ the point where the payoff vanishes:
+\begin{gather*}
+V_k=\frac2{b-a}\Big[K\psi_k(\bar z)-F\chi_k(\bar z)\Big],\qquad \bar z=\min(\max(z,a),b),\\
+\psi_k(z)=\int_a^z\cos(u_k(y-a))\dd y,\qquad\chi_k(z)=\int_a^ze^y\cos(u_k(y-a))\dd y .
+\end{gather*}
+Both integrals are elementary:
+\begin{gather*}
+\chi_k(z)=\frac{e^{z}\cos(u_k(z-a))+u_ke^{z}\sin(u_k(z-a))-e^{a}}{1+u_k^2},\\
+\psi_k(z)=\frac{\sin(u_k(z-a))}{u_k}\quad(k\ge1),\qquad\psi_0(z)=z-a .
+\end{gather*}
+\textbf{Step 4.} The price is
+\begin{equation}\label{eq:cos}
+P=\DF\sum_{k=0}^{N-1}{}'\,w_kV_k,\qquad w_k=\mathrm{Re}\big[\varphi(u_k)e^{-iu_ka}\big],
+\end{equation}
+where the prime on $\sum'$ indicates that the $k=0$ term is taken with weight $\tfrac12$ (since $\varphi(0)=1$, we
+have $w_0=1$ and the weighted term is $\tfrac12V_0$).
+Truncating $z$ to $[a,b]$ (that is, $\bar z$) is not a detail: without it, strikes outside the interval give wrong
+prices, even negative ones.
+
+\begin{perche}[title={Why COS is fast, and why it prices puts}]
+\begin{itemize}
+\item The Heston density is smooth and its CF is analytic: the coefficients $w_k$ decay \emph{exponentially} in $k$,
+at the rate of $|\varphi(u_k)|$. A few hundred terms are enough.
+\item The interval is for $X$ and does not depend on the strike: $\varphi(u_k)$ is computed once per expiry and serves
+all strikes. The price of $M$ strikes is an $(M\times N)$ matrix--vector product.
+\item The put payoff is bounded (at most $K$). The call payoff grows like $e^y$, and its coefficients $V_k$ are
+proportional to $e^b$: every truncation error is amplified. One therefore computes the put and obtains the call by
+parity: \mbox{$C=P+\DF\,(F-K)$}.
+\end{itemize}
+\end{perche}
+
+\subsection{The truncation interval}
+We choose an interval centered on the mean of $X$ and $L$ standard deviations wide:
+\begin{equation}\label{eq:cos-range}
+[a,b]=\big[c_1-L\sqrt{c_2},\ c_1+L\sqrt{c_2}\big],\qquad c_1=-\tfrac12\bar\Sigma,\quad c_2=\Var X .
+\end{equation}
+$c_1$ and $c_2$ are the first two cumulants of $X$. They are obtained by differentiating the cumulant generating
+function $\mathcal K(w)=\ln\E e^{wX}$ (the CF evaluated at $u=-iw$) and solving the linear equations satisfied by the
+coefficients of the expansion of $D$ in powers of $w$. With $E=e^{-\kappa T}$:
+\begin{equation}\label{eq:c2}
+\begin{split}
+c_2&=2\theta\Big[\alpha_0(T-\tau_\kappa)+\alpha_1(\tau_\kappa-TE)+\tfrac12\alpha_2\kappa\tau_\kappa^2\Big]\\
+&\quad+2v_0\Big[\alpha_0\tau_\kappa+\alpha_1TE+\alpha_2E\tau_\kappa\Big],
+\end{split}
+\end{equation}
+with
+\[
+\alpha_0=\frac12-\frac{\rho\xi}{2\kappa}+\frac{\xi^2}{8\kappa^2},\qquad
+\alpha_1=\frac{\rho\xi}{2\kappa}-\frac{\xi^2}{4\kappa^2},\qquad
+\alpha_2=\frac{\xi^2}{8\kappa^2}.
+\]
+Check: as $T\to0$, $c_2\to v_0T$ (the variance of one Black step with volatility $\sqrt{v_0}$). For
+$\kappa T<10^{-3}$ the first-order expansion in $\kappa$ is used, because the exact formula has a $1/\kappa^3$
+prefactor on a numerator of order $\kappa^3$ and becomes noisy.
+
+\begin{attenzione}[title={A misprint in the literature}]
+The $c_2$ formula in Table 11 of Fang--Oosterlee (2008) contains a typo: the term $\bar u(6e^{-\lambda T}-7)$ should
+read $\bar u(4e^{-\lambda T}-5)$. The printed version is too small by $\xi^2\theta(1-E)/(4\kappa^3)$ and can become
+negative: this is why the authors use $|c_2|$.
+
+In the project $c_2$ is derived in two independent ways. It is then checked against finite differences of
+$\mathcal K(w)$ and against a numerical integration of the moment equations (agreement $\le{2.7\times10^{-15}}$
+relative). Hand estimate on the FO set at $T=1$: $c_2=0.03157$, against $0.03091$ with the printed formula.
+\end{attenzione}
+
+\subsection{The two sources of COS error}
+The COS error has two independent components.
+\begin{itemize}
+\item \textbf{Series error}: the sum is truncated at $N$ terms. It decreases exponentially with $N$.
+\item \textbf{Range error} (or tail error): the mass outside $[a,b]$ is ignored. It does not depend on $N$; it depends
+on $L$.
+\end{itemize}
+The second one is more insidious than it looks. Below $a$ the cosine series represents, instead of the true payoff
+$K-Fe^y$, its \emph{even reflection} about $a$, namely $K-Fe^{2a-y}$. The error is therefore
+\begin{equation}\label{eq:cos-riflessione}
+\varepsilon_{\text{tail}}\approx\int_{-\infty}^aF\big(e^{2a-y}-e^{y}\big)f(y)\dd y .
+\end{equation}
+The weight $e^{2a-y}$ \emph{grows} like $e^{-y}$ moving to the left. With $\rho<0$ the left tail of $X$ is heavy, so
+even a tiny probability outside $[a,b]$ can produce a visible error. An interval based only on $c_2$ also ignores the
+kurtosis.
+
+\begin{esempio}[title={Example: the literature choice $L=12$}]
+With $L=12$, $N=256$ (Fang--Oosterlee's choice for Heston), the maximum discrepancy between COS and Lewis on the test
+grid is ${3.95\times10^{-5}}$ on the FO set and ${2.58\times10^{-6}}$ on the GS set (SPX-like): above the $10^{-6}$
+threshold.
+
+Diagnosis in three moves.
+\begin{enumerate}
+\item Increasing $N$ from 256 to 4096 does not change the error: it is not the series.
+\item Increasing $L$ by 2 lowers the error by a factor of about 8: it is the interval.
+\item On the FO set, $T=1$, ATM put, the term \eqref{eq:cos-riflessione} computed separately is
+${3.948\times10^{-5}}$; the measured error is $-{3.947\times10^{-5}}$. The probability outside the interval is only
+${7.7\times10^{-6}}$, but the weight $e^{-y}$ amplifies it.
+\end{enumerate}
+This is an instance of the principle ``suspect the math first, then the code, the test last''.
+\end{esempio}
+
+\subsection{Self-verifying COS}
+A first fix was to set $L=18$. On the four test sets this was enough: maximum error ${1.01\times10^{-7}}$ (FO) and
+${2.48\times10^{-9}}$ (GS). An independent check showed, however, that a fixed pair $(N,L)$ is not robust.
+
+\begin{itemize}
+\item On 300 random parameter sets plausible for the SPX, with 6 expiries each (1800 cells), COS with $(256,18)$
+exceeds $10^{-6}$ in 413 cells (22.9\%), with a maximum of ${9.95\times10^{-2}}$.
+\item The code issued a warning based on an estimate of the series error. But 5 cells were silently wrong (up to
+${2.61\times10^{-6}}$), because the warning did not model the range error.
+\end{itemize}
+
+For one of these silent cells, Table~\ref{tab:cos-NL} shows the discrepancy from an independent reference price as
+$(N,L)$ varies.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Discrepancy of COS from an independent reference price, on a ``silent'' cell, as $(N,L)$ varies.}
+\label{tab:cos-NL}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+$(N,L)$ & $(256,18)$ & $(1024,18)$ & $(4096,18)$ & $(4096,24)$ & $(4096,30)$\\
+\midrule
+error & ${2.61\times10^{-6}}$ & ${2.51\times10^{-6}}$ & ${2.51\times10^{-6}}$ & ${2.09\times10^{-8}}$ & ${9.28\times10^{-10}}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Again: the error is flat in $N$ and collapses with $L$. In calibration (Chapter~\ref{cap:calibrazione}) the
+parameters explore exactly these regions, so a COS that checks itself was needed.
+
+\begin{idea}[title={Key idea: the self-verifying algorithm}]
+\begin{enumerate}
+\item Start from $(N,L)=(256,18)$ and compute the puts for all strikes of the expiry.
+\item Recompute with $(2N,\,L+6)$ and measure the maximum discrepancy across strikes.
+\item If the discrepancy is $\le10^{-9}F$ (that is, $10^{-7}$ at $F=100$, ten times below the threshold), return the
+\emph{finer} price. Otherwise, double again.
+\item If $N$ reaches $2^{14}$ without agreement, the code issues a ``not converged'' warning: it is never silently
+wrong.
+\end{enumerate}
+Doubling $N$ squares the series error; adding 6 to $L$ reduces the range error by a factor of 20--500 (measured).
+Hence the discrepancy between the two levels is a good estimate of the error of the coarser level, and the finer price
+is better than the tolerance.
+\end{idea}
+
+\begin{attenzione}
+Self-verification is an \emph{a posteriori} estimate, not a rigorous bound: it assumes that each refinement reduces
+the error substantially. It also makes the price a piecewise function of the parameters (at the $10^{-9}F$ level),
+which disturbs finite-difference Jacobians. This is why in calibration $(N,L)$ is frozen at a fixed value for the
+whole fit.
+\end{attenzione}
+
+\begin{progetto}[title={In the qpricer project: self-verifying COS}]
+\code{src/qpricer/engines/fourier.py}, function \code{cos\_price}: if $N$ and $L$ are not specified it uses the
+self-verifying algorithm; if they are specified it performs a single evaluation (for tests and studies).
+\begin{itemize}
+\item Random scan (1800 cells): 0 cells above $10^{-6}$, 0 warnings, maximum error ${3.05\times10^{-9}}$.
+\item Final $N$: 512 in 1248 cells, 1024 in 274, 2048 in 189, 4096 in 69, 8192 in 17, 16{,}384 in 3. Median cost 768
+CF evaluations.
+\item Time for 25 strikes: 0.30\,ms (GS, $T=1$), 0.62\,ms (FO, $T=1$), 7.97\,ms (worst cell, $T=3$), against 0.12\,ms
+for fixed $(256,18)$ and 4.6--9.5\,ms for Lewis.
+\end{itemize}
+\end{progetto}
+
+\section{Fourier pricing, method 2: the Lewis formula}
+A second method, independent of the interval $[a,b]$ and of any series, serves as a check:
+\begin{equation}\label{eq:lewis}
+C=\DF\Big[F-\frac{\sqrt{FK}}{\pi}\int_0^\infty\mathrm{Re}\big[e^{iux}\varphi(u-\tfrac i2)\big]\frac{\mathrm{d}u}{u^2+\frac14}\Big],
+\qquad x=\ln(F/K).
+\end{equation}
+The put is obtained by replacing the first $F$ with $K$.
+
+\subsection{Step-by-step derivation}
+\textbf{Step 1.} $(F_T-K)^+=F_T-\min(F_T,K)$ and $\E F_T=F$. It is therefore enough to compute $\E\min(F_T,K)$.
+
+\textbf{Step 2.} With $F_T=Fe^X$ we write $\min(F_T,K)=K\,g(x+X)$, where $g(y)=\min(e^y,1)$.
+
+\textbf{Step 3.} The Fourier transform of $g$ exists in the strip $0<\mathrm{Im}\,\zeta<1$. Splitting the integral
+into $y<0$ (where $g=e^y$) and $y>0$ (where $g=1$):
+\[
+\hat g(\zeta)=\int_{\R}e^{i\zeta y}g(y)\dd y=\frac{1}{1+i\zeta}-\frac{1}{i\zeta}=\frac{1}{\zeta^2-i\zeta}.
+\]
+\textbf{Step 4.} The transform is inverted along the line $\zeta=u+\tfrac i2$, in the middle of the strip:
+\[
+\E\min(F_T,K)=\frac{K}{2\pi}\int_{\R}\hat g(\zeta)\,e^{-i\zeta x}\,\varphi(-\zeta)\dd u .
+\]
+On this line $\zeta^2-i\zeta=u^2+\tfrac14$ is real and positive, and $Ke^{x/2}=\sqrt{FK}$.
+
+\textbf{Step 5.} By the symmetry $\varphi(-u-\tfrac i2)=\overline{\varphi(u-\tfrac i2)}$ the integral over $\R$ folds
+onto $[0,\infty)$ as a real part: this gives \eqref{eq:lewis}.
+
+\begin{perche}[title={\texorpdfstring{Why the contour $\mathrm{Im}\,u=-\tfrac12$ in particular}{Why the contour Im u = -1/2 in particular}}]
+The contour only requires $\E[F_T^{1/2}]<\infty$, which always holds (by Jensen's inequality
+$\E[F_T^{1/2}]\le F^{1/2}$). Other contours (for example those of Carr--Madan) require higher moments, which in Heston
+can explode (Section~\ref{sec:heston-code}). Moreover, the integrand is regular at $u=0$: we have
+$4\varphi(-\tfrac i2)\le4$, without the $1/u$ singularity of the Gil-Pelaez formulas.
+
+Check with Black: if $X$ is Gaussian with total variance $s^2$, $\varphi(u-\tfrac i2)=e^{-(u^2+1/4)s^2/2}$.
+\end{perche}
+
+\subsection{The quadrature}
+The integral is computed with adaptive quadrature on $[0,\infty)$, vectorized over all strikes of an expiry. The price
+error is at most $\DF\sqrt{FK}\cdot\mathrm{err}/\pi$, where $\mathrm{err}$ is the quadrature error.
+
+Keeping it below $10^{-7}$ up to $K=150$ requires $\mathrm{err}\le{2.6\times10^{-9}}$. With SciPy's default
+tolerances (${1.49\times10^{-8}}$) the price error reaches about ${2\times10^{-6}}$, which is not enough: the code uses
+tolerances of $10^{-11}$ and raises an error if the quadrature does not report convergence.
+
+\begin{progetto}
+\code{lewis\_price} in \code{src/qpricer/engines/fourier.py}. In the checks of this chapter the quadrature never
+failed: on 1800 random cells, on all the extreme cases tried, and for $T$ down to $10^{-4}$. Against an independent
+reference price the agreement is $\le{1.62\times10^{-9}}$ on the test grid.
+\end{progetto}
+
+\section{\texorpdfstring{The limit $\xi\to0$ and the correction term $\rho\xi J$}{The limit xi -> 0 and the correction term rho xi J}}
+\subsection{Zeroth order: Black at the mean variance}
+If the vol-of-vol is zero, the variance is deterministic ($v_t=\bar v(t)$) and $F_T$ is lognormal with total variance
+$\bar\Sigma$. The price is therefore Black's with $\sigma_{\text{eff}}^2=\bar\Sigma/T$.
+
+It seems natural to check the code like this: ``at $\xi=10^{-4}$ Heston must agree with Black to within $10^{-5}$''.
+But with $\rho\ne0$ this is not true, and it is instructive to understand why.
+
+\subsection{\texorpdfstring{First order in $\xi$}{First order in xi}}
+\textbf{Step 1.} Expand the solution of the Riccati equation: $D=D_0+\xi D_1+O(\xi^2)$. At zeroth order
+$D_0=-\tfrac12A\,\tau_\kappa(\tau)$; at first order $D_1'=-\kappa D_1+i\rho uD_0$.
+
+\textbf{Step 2.} Integrating, and using $C=\kappa\theta\int D$:
+\[
+\ln\varphi(u)=-\tfrac12A\,\bar\Sigma+\xi\rho\,(iu)\big(-\tfrac12A\big)J+O(\xi^2).
+\]
+\textbf{Step 3.} The Black CF with total variance $\Sigma$ is $e^{-A\Sigma/2}$. A factor $-\tfrac12A$ therefore acts as
+a derivative with respect to $\Sigma$, and a factor $iu$ as a derivative with respect to $x=\ln F$ (integrating by
+parts in the price). We obtain
+\begin{equation}\label{eq:xi-zero}
+V_H=V_B(\sigma_{\text{eff}})+\rho\,\xi\,J\,\partial_x\partial_\Sigma V_B+O(\xi^2),
+\end{equation}
+with
+\begin{align}
+J&=\int_0^T\bar v(t)\,\frac{1-e^{-\kappa(T-t)}}{\kappa}\dd t
+=\frac{\theta}{\kappa}(T-\tau_\kappa)+\frac{v_0-\theta}{\kappa}(\tau_\kappa-TE),\label{eq:J}\\
+\partial_x\partial_\Sigma V_B&=-\frac{\DF\,F\,n(d_1)\,d_2}{2\bar\Sigma}.\nonumber
+\end{align}
+Here $n$ is the standard normal density and $d_{1,2}$ are Black's at $\sigma_{\text{eff}}$.
+
+\begin{idea}
+With correlation $\rho\ne0$ the distance from Black is \emph{linear} in $\xi$, not quadratic. The gate ``at
+$\xi=10^{-4}$ Heston agrees with Black to within $10^{-5}$'' is therefore achievable only for $\rho=0$. For $\rho\ne0$
+the correct reference is Black \emph{plus} the term \eqref{eq:xi-zero}.
+\end{idea}
+
+\begin{esempio}[title={Example: how large the correction is}]
+$\kappa=1.5$, $v_0=\theta=0.04$, $\rho=-0.7$, $\xi=10^{-4}$, $T=1$, $K=120$, $F=100$, $\DF=1$. The hand estimate of
+the term $\rho\xi J\partial_x\partial_\Sigma V_B$ is $-{3.3\times10^{-4}}$: thirty times the $10^{-5}$ tolerance.
+
+An independent numerical check (Lewis against Black, same $\kappa,\theta,T$) confirms the linearity: the maximum
+discrepancy is ${3.27\times10^{-3}}$, ${3.27\times10^{-4}}$, ${3.25\times10^{-5}}$ for $\xi=10^{-3},10^{-4},10^{-5}$. At
+$\rho=0$ and $\xi=10^{-4}$ it is instead ${2.6\times10^{-8}}$.
+\end{esempio}
+
+The adopted solution is a two-part gate, with the tolerance unchanged at $10^{-5}$:
+\begin{itemize}
+\item at $\rho=0$ against pure Black at $\sigma_{\text{eff}}$;
+\item at $\rho=-0.7$ against Black plus the term \eqref{eq:xi-zero}.
+\end{itemize}
+Reducing $\xi$ to $10^{-7}$ to make the linear term vanish was rejected: it would test the rounding in the
+$\kappa\theta/\xi^2$ terms, not the model.
+
+\begin{progetto}[title={\texorpdfstring{In the qpricer project: the limit $\xi\to0$ measured}{In the qpricer project: the limit xi -> 0 measured}}]
+Grid $K\in[60,150]$, $T\in[0.1,3]$, $\xi=10^{-4}$, $\kappa=1.5$, both engines (COS and Lewis), threshold $10^{-5}$:
+\begin{center}
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+ & $\rho=0$ & $\rho=-0.7$ & $\rho=-0.7$\\
+$(\theta,v_0)$ & vs Black & vs Black${}+{}$\eqref{eq:xi-zero} & vs pure Black\\
+\midrule
+$(0.04,\,0.04)$ & ${4.36\times10^{-8}}$ & ${5.58\times10^{-8}}$ & ${6.05\times10^{-4}}$\\
+$(0.04,\,0.09)$ & ${4.18\times10^{-8}}$ & ${5.33\times10^{-8}}$ & ${6.58\times10^{-4}}$\\
+$(0.09,\,0.01)$ & ${3.02\times10^{-8}}$ & ${3.66\times10^{-8}}$ & ${6.20\times10^{-4}}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The cases with $v_0\ne\theta$ also check the time averaging in $\sigma_{\text{eff}}$. An independent check
+differentiated its own price numerically at $\xi=0$: the first-order coefficient agrees with $\rho J\partial_x
+\partial_\Sigma V_B$ to within ${1.6\times10^{-10}}$. The gap from pure Black therefore lies in the model, not in the
+code.
+\end{progetto}
+
+As $T\to0$ we have $J\to v_0T^2/2$, and \eqref{eq:xi-zero} becomes a shift in implied volatility:
+\begin{equation}\label{eq:heston-skew}
+\delta\sigma\approx\frac{\rho\,\xi}{4\sqrt{v_0}}\ln\frac KF,
+\qquad\text{that is, ATM skew}\approx\frac{\rho\,\xi}{4\sqrt{v_0}} .
+\end{equation}
+This is why $\rho<0$ produces the skew. It also reveals a limitation of the model: as $T\to0$ the skew tends to a
+\emph{finite} value, whereas the very short-dated SPX skew keeps steepening.
+
+\section{Tails, moment explosion, symmetry}
+\label{sec:heston-code}
+\paragraph{Moment explosion.} With large $\xi$ some moments $\E[(F_T/F)^\omega]$ become infinite after a finite time
+$T^*(\omega)$. For $\rho\le0$, with $\chi=\rho\xi\omega-\kappa$ and $\Delta_\omega=\chi^2-\xi^2(\omega^2-\omega)$:
+\begin{equation}\label{eq:esplosione}
+T^*(\omega)=\begin{cases}
+\infty & \Delta_\omega\ge0,\\[2pt]
+\dfrac{2}{\sqrt{-\Delta_\omega}}\Big[\arctan\dfrac{\sqrt{-\Delta_\omega}}{\chi}+\pi\,\ind_{\chi<0}\Big] & \Delta_\omega<0.
+\end{cases}
+\end{equation}
+No $\omega\in[0,1]$ ever explodes. For example, on the FO set $T^*(-2)=4.28$ years (hand estimate).
+
+Two practical consequences.
+\begin{itemize}
+\item The slope of the smile wings is fixed by the exploding moments (Lee's moment formula).
+\item A Fourier contour that requires an exploded moment diverges. Lewis's contour, which requires only
+$\omega=\tfrac12$, is always safe.
+\end{itemize}
+
+\paragraph{Symmetry.} Changing measure with density $F_T/F$ (the share measure), Heston remains Heston with modified
+parameters. By Girsanov the variance acquires the drift $\rho\xi v$, and $Y=-X$ has correlation $-\rho$:
+\[
+C(F,K;\kappa,\theta,\xi,\rho,v_0)=\frac KF\,P\Big(F,\frac{F^2}{K};\ \kappa-\rho\xi,\ \frac{\kappa\theta}{\kappa-\rho\xi},
+\ \xi,\ -\rho,\ v_0\Big).
+\]
+It is a good test: it links a call and a put computed with different parameters.
+
+\section{Numerical pitfalls}
+\begin{enumerate}
+\item \textbf{Original form of the CF}: branch cut of the logarithm (wrong prices at long $T$) and overflow of
+$e^{dT}$. Use the little trap form.
+\item \textbf{Catastrophic cancellation in $\beta-d$} for small $\xi$, and the $2\kappa\theta/\xi^2$ amplification of the
+logarithm's error: use \eqref{eq:heston-cf-code} with \code{log1p}.
+\item \textbf{Calls computed directly with COS}: errors amplified by $e^b$. Compute puts.
+\item \textbf{Interval too narrow}: the error stops decreasing with $N$ but changes with $L$. Use self-verifying COS.
+\item \textbf{Strikes outside $[a,b]$}: without truncating $z$ one gets wrong prices, even negative ones. The resulting
+zero prices for deep OTM strikes must be treated as missing in the volatility inversion.
+\item \textbf{The $c_2$ typo} in Fang--Oosterlee: use \eqref{eq:c2}.
+\item \textbf{Lewis tolerances}: the quadrature defaults are not enough.
+\item \textbf{$\rho\to\pm1$}: the CF decays only like $e^{-c\sqrt u}$ and COS convergence becomes algebraic; we
+restrict $|\rho|\le0.99$.
+\item \textbf{Feller violated}: not a problem for Fourier; it is one for Monte Carlo.
+\end{enumerate}
+
+\section{Checks and published values}
+The project uses four parameter sets for its checks:
+\begin{itemize}
+\item \textbf{FO}: $\kappa=1.5768$, $\theta=0.0398$, $\xi=0.5751$, $\rho=-0.5711$, $v_0=0.0175$; a Eurostoxx-50
+calibration used in the literature; violates Feller ($\nu_F=0.38$);
+\item \textbf{GS}: $\kappa=1.3253$, $\theta=0.0354$, $\xi=0.3877$, $\rho=-0.7165$, $v_0=\theta$; SPX-like
+(Gatheral 2006); violates Feller ($\nu_F=0.62$);
+\item \textbf{LW}: $\kappa=4$, $\theta=0.25$, $\xi=1$, $\rho=-0.5$, $v_0=0.04$ ($\nu_F=2$);
+\item \textbf{AT2}: $\kappa=1.5$, $\theta=v_0=0.04$, $\xi=0.3$, $\rho=-0.9$ ($\nu_F=1.33$).
+\end{itemize}
+
+\begin{progetto}[title={In the qpricer project: checks of the Fourier part}]
+\textbf{COS against Lewis} on $K\in[60,150]$, $T\in[0.1,3]$, $\DF\in\{1,0.95\}$, calls and puts, threshold
+$10^{-6}$:
+\begin{center}
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+ & FO & GS & LW & AT2\\
+\midrule
+self-verifying COS & ${1.83\times10^{-10}}$ & ${1.40\times10^{-12}}$ & ${1.14\times10^{-13}}$ & ${5.12\times10^{-12}}$\\
+fixed $(256,18)$ & ${1.01\times10^{-7}}$ & ${2.48\times10^{-9}}$ & ${1.10\times10^{-13}}$ & ${9.82\times10^{-9}}$\\
+fixed $(256,12)$ & ${3.95\times10^{-5}}$ & ${2.58\times10^{-6}}$ & ${8.35\times10^{-9}}$ & ${1.36\times10^{-7}}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Published values} (project discrepancy):
+\begin{itemize}
+\item Fang--Oosterlee, FO set, ATM, $T=1$: 5.785155450, reproduced to $-{1.6\times10^{-8}}$; at $T=10$:
+22.318945791, to $+{1.5\times10^{-10}}$.
+\item Lewis reference prices (via QuantLib): to ${3\times10^{-14}}$.
+\item Broadie--Kaya (4 published decimals): to ${4.2\times10^{-5}}$.
+\item Andersen's set A-I, $K=100$, value 13.08467014 (single source): Lewis to $-{3.0\times10^{-9}}$.
+\end{itemize}
+The values of Albrecher et al.\ (2007) are \emph{not} reproduced to the stated precision for 3 values out of 8 (for
+example $+0.0073$ at $T=2$ with stated precision 0.005). No single rate explains them all; the most likely diagnosis is
+that the parameters are printed to 4 digits, and rounding them moves the prices by more than the stated precision.
+For this reason those values are not used as binding tests; the trap itself is checked by the negative control.
+\end{progetto}
+
+\begin{riassunto}
+\begin{itemize}
+\item The SPX skew corresponds to a heavy left tail, that is, to the leverage effect. Heston: CIR variance correlated
+with the price.
+\item $v_0,\theta$ levels; $\kappa$ speed; $\xi$ curvature; $\rho$ slope. Feller matters for MC, not for Fourier.
+\item Closed-form CF from Feynman--Kac, the affine ansatz and Riccati. We use the little trap form, written without
+subtractions and with \code{log1p}.
+\item COS: density as a cosine series, coefficients from the CF, exponential convergence; puts are priced. The range
+error is the real risk: the code uses a self-verifying $(N,L)$.
+\item Lewis: a single integral on the contour $\mathrm{Im}\,u=-\frac12$, always defined; it is the independent check.
+\item $\xi\to0$: Black at the mean variance only for $\rho=0$; otherwise there is a term linear in $\rho\xi$.
+\end{itemize}
+\end{riassunto}
+
+\needspace{8\baselineskip}
+\begin{domande}
+\begin{enumerate}
+\item What effect does each Heston parameter have on the smile?
+\item Why does the Heston CF have a closed form? \emph{Hint:} affine model, exponential-affine ansatz, Riccati.
+\item What is the ``little Heston trap''? Why do two algebraically equal formulas give different prices?
+\item Why does COS price puts rather than calls?
+\item The COS error does not decrease when $N$ is increased. What do you conclude, and what do you change?
+\item Why does self-verification compare $(N,L)$ with $(2N,L+6)$ and return the finer price?
+\item The Feller condition is violated: is the COS price wrong? \emph{Hint:} no; it matters for simulation.
+\item Why, with $\rho\ne0$, does the limit $\xi\to0$ not agree with Black to within $10^{-5}$?
+\end{enumerate}
+\end{domande}

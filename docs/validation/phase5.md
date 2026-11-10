@@ -87,7 +87,7 @@ untracked or uncommitted:
 - `calibration.py` and the tests.
 
 The D-034 pilot fit on the original box has no script and no saved output, so the disclosure is not re-runnable.
-CLAUDE.md requires every number to come from a script.
+The project rules require every number to come from a script.
 
 *Impact: none on the results.*
 - My fit with my own pricer on the **original** note box (11) reaches the reported optimum from all 20 starts. These are
@@ -163,7 +163,7 @@ appears nowhere in the scripts or tests. I ran it on the 39 real grids:
 The report must say "BSM at the calibrated-Heston ATM vol". The ROADMAP's "explain the difference" is satisfied by the
 eq. (19) decomposition, which I confirmed term by term.
 
-**M10 — Size (minor, owner decision).** `src/` has 2468 lines (`calibration.py` 568), against the target of ≲ 1500.
+**M10 — Size (minor, author's decision).** `src/` has 2468 lines (`calibration.py` 568), against the target of ≲ 1500.
 The Phase 4 report (F10) already flagged 1900.
 
 **M11 — JSON provenance nit (trivial).** `heston_fit_*.json` lists "D-032..D-037" and omits D-038.

@@ -33,7 +33,7 @@ implementer's descriptions). F9 and F10 were skipped by the coordinator.
 Files re-read:
 - `engines/exotic_mc.py`, `products.py`;
 - `tests/test_{barrier,asian,autocallable}.py`, `scripts/phase4_gates.py`, `scripts/autocall_compare.py`;
-- D-025…D-031, the OPEN_ISSUES Phase 4 entries, the errata of barrier.md and autocallable.md, BUILD_STATUS;
+- D-025…D-031, the OPEN_ISSUES Phase 4 entries, the errata of barrier.md and autocallable.md;
 - the regenerated `autocall_attribution_illustrative.{png,csv}` and `gate_outputs/phase4_gates.txt`.
 
 **Changes on my side** (`tests/validation/test_phase4_independent.py`, now 38 tests: 26 fast, 12 slow):
@@ -63,7 +63,7 @@ All other tolerances are as in the notes: 3 SE, 3 SE + 1e-3, 5e-4, 3e-4, 1e-12. 
 | F2 corollary: `barrier_mc` passes `None` | **justified** | Its uniform `n_steps` grid *is* the simulation grid. The bridge (9) uses each step's left-point variance with Δ = T/n_steps; hidden sub-steps would pair a coarse-node variance with that Δ. Under BSM the steps are exact for any M; under Heston, Δ is set by `n_steps` (D-028, gate at 1/128). Output is unchanged bit for bit: G2m seed 20261148 still gives +0.01826, G2h still 2.97. |
 | F3 single-seed bias table | **CLOSED** | D-028 and `phase4_gates.py` quote the 25-seed pooled +0.095 / +0.055 / +0.020 / +0.012 and say that G2m passes because 0.020 is below the gate SE. |
 | F4 G2h seed (info) | **CLOSED** | D-028 cites the 300-seed scan and withdraws the 20-seed "pui 0.36". |
-| F5 deferred gate | **CLOSED** | `phase4_gates.py` prints `ROADMAP: autocall BSM (ATM) vs CALIBRATED Heston … DEFERRED (Phase 5)` and the summary "24 PASS, 0 FAIL, 1 DEFERRED". The same appears in `gate_outputs/phase4_gates.txt` and BUILD_STATUS. Every GS line is labelled "(illustrative)" or "(illustrative GS)"; the LABEL line, CSV `label` column (both rows) and figure suptitle carry "illustrative, pre-calibration". |
+| F5 deferred gate | **CLOSED** | `phase4_gates.py` prints `ROADMAP: autocall BSM (ATM) vs CALIBRATED Heston … DEFERRED (Phase 5)` and the summary "24 PASS, 0 FAIL, 1 DEFERRED". The same appears in `gate_outputs/phase4_gates.txt`. Every GS line is labelled "(illustrative)" or "(illustrative GS)"; the LABEL line, CSV `label` column (both rows) and figure suptitle carry "illustrative, pre-calibration". |
 | F6 "term structure" label | **CLOSED** | Relabelled "flat σ_ATM vs Heston expected-variance curve (level + term structure)" in the code, CSV column, figure and D-031; autocallable.md E3 added. With v0 = θ the script prints the pure level gap (√θ 0.1881 vs σ_ATM 0.1687). Values are unchanged and still match my exact term1 within 0.7 CRN SE (0.59 AC-Q, 0.68 AC-A). |
 | F7a (19) upper bounds | **CLOSED** | `test_eq19_bounds_pathwise_and_in_expectation` covers the pathwise and closed-form bounds; my test passes too. |
 | F7b Deng et al. | **CLOSED** (code); oracle stays an OPEN_ISSUE | `Autocall.c` accepts n per-period coupons, and the scalar path is unchanged (c τ_i). Checks: flows vs LOOP with random non-proportional schedules and ties are bit-equal; eq. (11)/(12) with vector coupons vs ACX ≤ 1.1e-10; Deng sheet `autocall_mc` vs ACX 97.5068 over 10 validator seeds × 4e5 paths, \|z\| ≤ 1.51 (gate script: 97.508 ± 0.009, z +0.09); first-call p_i vs Table 1 max \|z\| 2.11. Published 98.39 recorded as not reproduced (OPEN_ISSUES, nothing tuned). `test_deng_first_call_probability_p1` now calls `ratio_marginals`. |
@@ -149,9 +149,9 @@ All other tolerances are as in the notes: 3 SE, 3 SE + 1e-3, 5e-4, 3e-4, 1e-12. 
    tracks the path set's vanilla error (corr 0.905). No bias over 300 seeds. D-028's "pui mean 0.36" over 20 seeds is
    noise; the 300-seed value is −0.031.
 5. **F5 — minor (gate status).** The ROADMAP gate needs a **calibrated** Heston, which arrives in Phase 5.
-   `scripts/phase4_gates.py` prints "PASS (report, illustrative)". BUILD_STATUS and the commit message should record this
+   `scripts/phase4_gates.py` prints "PASS (report, illustrative)". The gate summary and the commit message should record this
    gate as **deferred**, not passed. The OPEN_ISSUES entry exists and is accurate.
-6. **F6 — minor (interpretation; interview-relevant).** For GS, v0 = θ, so w(t) = θt is flat at 18.82%. Eq. (19)'s
+6. **F6 — minor (interpretation).** For GS, v0 = θ, so w(t) = θt is flat at 18.82%. Eq. (19)'s
    "ATM term structure" term (−0.0021 AC-Q, −0.0082 AC-A) is therefore **not** a term-structure effect. It is the level gap
    between √θ and σ_ATM = 16.87%, i.e. the vol-of-vol convexity of ATM implied vol. **Fix:** either relabel the term
    (figure and D-031), or rescale w so the TS model matches σ_ATM at T, so that term1 isolates the shape.
@@ -169,7 +169,7 @@ All other tolerances are as in the notes: 3 SE, 3 SE + 1e-3, 5e-4, 3e-4, 1e-12. 
    control (e.g. K = [100, 400], σ = 0.2). `kind="arithmetic"` returns 0 for that strike. This behaviour is documented.
    Suggest falling back to ĉ = 0 per strike.
 10. **F10 — minor (size).** `src/` has 1891 lines against the ≲ 1500 target (+26%). Phase 4 added 531 of them: products 76,
-    analytic 208, exotic_mc 225, market +22. Report to the owner.
+    analytic 208, exotic_mc 225, market +22. Reported to the author.
 11. **F11 — nit.** autocallable.md §1 says "constant zero rate and carry" beyond T_max. D-025 implements a flat forward
     rate anchored at T_max, which is continuous and better. Add a one-line erratum to the note.
 
@@ -182,7 +182,7 @@ All other tolerances are as in the notes: 3 SE, 3 SE + 1e-3, 5e-4, 3e-4, 1e-12. 
   sub-step grid ends on every date.
 - **Eq. (19):** all three terms are computed as the note defines them, and the CRN SEs come from per-path differences.
 - **Labelling:** every GS-based output is labelled "illustrative, pre-calibration": CSV `label` column, figure title,
-  stdout, D-026, D-029, D-031, OPEN_ISSUES and BUILD_STATUS.
+  stdout, D-026, D-029, D-031 and OPEN_ISSUES.
 - **`forward_curve`:** equals my own log-linear interpolation and extrapolation to 1e-13 on 200 dates, is continuous at
   T_max, and raises before T_min. S_ref = 7374.4255 matches.
 - **Phase 0 market tests** (`tests/test_market.py`, `tests/validation/test_phase0_independent.py`) pass after the

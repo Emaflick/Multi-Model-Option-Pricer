@@ -214,7 +214,7 @@ $\rho=-0.5$, $v_0=0.04$ ($\nu_F=2$). **AT2**, the AMST Table 2 set: $\kappa=1.5$
 
 The MC note's Andersen sets (A-I, A-II, A-III) and Broadie–Kaya sets (BK-1, BK-2) are also valid COS/Lewis checks; their values are in heston-mc.md §5.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **What the parameters do to the smile.** Heston is Black–Scholes with a random variance budget. Leverage ($\rho<0$: vol rises as spot falls)
    tilts the smile into a skew at first order in $\rho\xi$. Vol-of-vol fattens both tails (curvature, second order). Mean reversion $\kappa$ sets how fast

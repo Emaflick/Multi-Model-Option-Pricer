@@ -7,7 +7,7 @@ snapshot date (US/Eastern), plus ``expiry``, ``option_type`` ('C'/'P'), ``spot``
 parquet schema metadata under the key ``qpricer`` (read with ``qpricer.data.read_raw_metadata``).
 
 No cleaning happens here: the file is the untouched market snapshot. If the download fails the
-script exits non-zero and writes nothing (no synthetic fallback, CLAUDE.md hard rules).
+script exits non-zero and writes nothing (no synthetic fallback: project hard rule).
 
 Usage: ``.venv/bin/python scripts/fetch_spx.py [--min-days 7] [--max-days 730]``
 """

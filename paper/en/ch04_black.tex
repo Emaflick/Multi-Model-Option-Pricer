@@ -1,0 +1,360 @@
+\chapter{The Black model (Black--Scholes on the forward)}
+\label{cap:black}
+
+The Black-76 model is the ``building block'' on which the whole project rests: every other model is compared with
+it, implied volatilities are defined through it, and almost every exotic product uses it as an oracle in some limit.
+In this chapter we derive the pricing formula, the Greeks, Black's equation, the gamma--theta link and the algorithm
+that inverts the formula (implied volatility).
+
+\section{Assumptions}
+Under the $T$-forward measure the forward follows a driftless geometric Brownian motion, as in \eqref{eq:gbm}:
+$\mathrm{d}F_t=\sigma F_t\dd W_t$, with $F_T=S_T$. The price of a European option is
+\[
+V_0=\DF\cdot\E^T\big[(\theta(F_T-K))^+\big].
+\]
+Inputs: $F,K>0$, $T>0$, $\DF$, $\sigma>0$. No $r$, no $q$.
+
+Notation: $x=\ln(F/K)$ (the call is ITM if $x>0$), $s=\sigma\sqrt T$ (total volatility),
+\begin{equation}
+d_{1,2}=\frac{\ln(F/K)}{\sigma\sqrt T}\pm\frac{\sigma\sqrt T}{2}=\frac{x}{s}\pm\frac{s}{2},\qquad d_1-d_2=s.
+\end{equation}
+
+\section{The pricing formula, step by step}
+\begin{proposizione}[Black-76 formula]
+\begin{equation}\label{eq:black}
+\boxed{V=\DF\,\theta\,\big[F\,\Phi(\theta d_1)-K\,\Phi(\theta d_2)\big]}
+\end{equation}
+\end{proposizione}
+
+\begin{proof}[Derivation for the call ($\theta=+1$)]
+\textbf{Step 1: split the payoff.} Write
+\[
+(F_T-K)^+=F_T\,\ind\{F_T>K\}-K\,\ind\{F_T>K\},
+\]
+so that
+\[
+\E^T[(F_T-K)^+]=\underbrace{\E^T[F_T\ind\{F_T>K\}]}_{(I)}-K\,\underbrace{\Q^T(F_T>K)}_{(II)} .
+\]
+\textbf{Step 2: the term (II).} From \eqref{eq:gbm-sol}, $F_T=F e^{sZ-s^2/2}$. Then
+\[
+F_T>K\iff sZ-\tfrac{s^2}{2}>\ln\tfrac KF\iff Z>\frac{-x+s^2/2}{s}=-d_2 .
+\]
+Hence $\Q^T(F_T>K)=\Q(Z>-d_2)=\Phi(d_2)$.
+
+\textbf{Step 3: the term (I) via a change of measure.} Write $F_T=F\cdot e^{sZ-s^2/2}$ and apply \eqref{eq:tilt}
+with $f(Z)=\ind\{Z>-d_2\}$:
+\begin{align*}
+\E\big[Fe^{sZ-s^2/2}\ind\{Z>-d_2\}\big]&=F\,\E\big[\ind\{Z+s>-d_2\}\big]\\
+&=F\,\Q(Z>-d_2-s)=F\,\Phi(d_2+s)=F\,\Phi(d_1).
+\end{align*}
+\textbf{Step 4.} Multiply by $\DF$: $C=\DF[F\Phi(d_1)-K\Phi(d_2)]$. For the put, repeat the computation on the event
+$\{F_T<K\}$, or use parity; this gives \eqref{eq:black} with $\theta=-1$.
+\end{proof}
+
+\begin{idea}[title={What $\Phi(d_1)$ and $\Phi(d_2)$ are}]
+\begin{itemize}
+\item $\Phi(d_2)=\Q^T(F_T>K)$ is the probability of exercise \emph{under the forward measure}, not a real-world
+forecast. $\DF\,\Phi(d_2)=-\partial C/\partial K$ is the price of a \emph{digital} option (it pays 1 if $F_T>K$).
+\item $\Phi(d_1)$ is the probability of the same event under the ``share measure'' (numéraire = underlying).
+$\DF\,\Phi(d_1)$ is the delta with respect to the forward.
+\end{itemize}
+\end{idea}
+
+\subsection{Normalized form and symmetries}
+Dividing by $\DF\sqrt{FK}$ and using $\sqrt{F/K}=e^{x/2}$:
+\begin{equation}\label{eq:black-norm}
+V=\DF\sqrt{FK}\;b_\theta(x,s),\qquad b_\theta(x,s)=\theta\big[e^{x/2}\Phi(\theta d_1)-e^{-x/2}\Phi(\theta d_2)\big],
+\end{equation}
+with the symmetry $b_{-1}(x,s)=b_{+1}(-x,s)$.
+The price therefore depends on only \emph{two} numbers: the moneyness $x$ and the total volatility $s$. Other
+identities that are useful as tests: homogeneity $V(\lambda F,\lambda K)=\lambda V$; swap $C(F,K)=P(K,F)$; put--call symmetry
+$C(F,K)=(K/F)\,P(F,F^2/K)$.
+
+\subsection{Limits}
+For $0<\sigma<\infty$: $(F-K)^+<c<F$ and $(K-F)^+<p<K$ (undiscounted prices). As $\sigma\to0$ the price tends to
+$\DF$ times the intrinsic value; as $\sigma\to\infty$ the call tends to $\DF\,F$ and the put to $\DF\,K$. At the money
+($x=0$) the price is exactly $C=\DF\,F\,\mathrm{erf}\big(s/(2\sqrt2)\big)$; to first order
+\begin{equation}\label{eq:brenner}
+C_{\text{ATM}}\approx\DF\,F\,\frac{s}{\sqrt{2\pi}}\approx0.4\,\DF\,F\,\sigma\sqrt T\qquad\text{(Brenner--Subrahmanyam)}.
+\end{equation}
+
+\section{The Greeks}
+The \textbf{Greeks} are the derivatives of the price with respect to the inputs: they measure risk and tell us how
+to hedge it. In the project they are derivatives with respect to the forward $F$ (with $K,T,\DF,\sigma$ fixed).
+
+\subsection{An identity that simplifies everything}
+\begin{equation}\label{eq:identita-phi}
+F\,\varphi(d_1)=K\,\varphi(d_2).
+\end{equation}
+\emph{Proof.} Since $d_1-d_2=s$ and $d_1+d_2=2x/s$,
+\[
+\frac{\varphi(d_2)}{\varphi(d_1)}=e^{(d_1^2-d_2^2)/2}=e^{(d_1-d_2)(d_1+d_2)/2}=e^{s\cdot(2x/s)/2}=e^{x}=\frac FK .
+\]
+
+\emph{Consequence.} When \eqref{eq:black} is differentiated with respect to an input $y$, the terms arising from
+$\partial_yd_1$ and $\partial_yd_2$ combine into $\DF\,F\varphi(d_1)\,\partial_y(d_1-d_2)=\DF\,F\varphi(d_1)\,\partial_ys$.
+So \emph{only the change in $s$ matters}. If $y=F$, $s$ does not change and those terms vanish.
+
+\subsection{The formulas}
+\begin{align}
+\Delta_F&=\frac{\partial V}{\partial F}=\theta\,\DF\,\Phi(\theta d_1),\label{eq:delta}\\
+\Gamma_F&=\frac{\partial^2V}{\partial F^2}=\frac{\DF\,\varphi(d_1)}{F\,\sigma\sqrt T}\quad\text{(same for call and put)},\label{eq:gamma}\\
+\vega&=\frac{\partial V}{\partial\sigma}=\DF\,F\,\varphi(d_1)\sqrt T\quad\text{(same for call and put)},\label{eq:vega}\\
+\Theta&=\Theta_0+rV,\qquad\Theta_0=-\frac{\DF\,F\,\varphi(d_1)\,\sigma}{2\sqrt T},\qquad r=-\frac{\ln\DF}{T}.\label{eq:theta}
+\end{align}
+Derivations: for the delta, $y=F$ and the $\partial d$ terms vanish; for the gamma, $\partial_F\Phi(d_1)=\varphi(d_1)/(Fs)$;
+for the vega, $\partial_\sigma s=\sqrt T$; for $\Theta_0$, $\partial_Ts=\sigma/(2\sqrt T)$ at fixed $\DF$. The vega is
+``per unit of volatility'': per ``vol point'' divide by 100 (on Hull's Greeks example in the next section the vega is
+12.1055, that is, 0.121 per vol point).
+
+Check identities: $\vega=\sigma T F^2\Gamma_F$ (long gamma $\Leftrightarrow$ long vega for a single option);
+$\Delta_C-\Delta_P=\DF$; $\partial C/\partial K=-\DF\,\Phi(d_2)$; $\partial^2C/\partial K^2=\DF\,\varphi(d_2)/(Ks)$ (the
+lognormal density, consistent with Breeden--Litzenberger).
+
+\subsection{Theta and its convention}
+The project's theta is $\Theta=\partial V/\partial t$ in calendar time, per year (divide by 365 for a daily theta).
+It holds fixed $F$ (the forward for the same expiry date), $K$, $\sigma$ and the zero rate $r=-\ln\DF/T$. So, as time
+passes, the discount factor $\DF=e^{-r(T-t)}$ ``grows'' towards 1 and contributes $+rV$: this is the return on the
+premium paid. The part at fixed $\DF$, $\Theta_0$, is pure time decay.
+
+\begin{perche}[title={Why this convention?}]
+It is exactly the $\mathrm{d}t$ term of Black's equation (next section): under $\Q^T$ the forward has no drift, so
+this is the theta that enters the expected P\&L of a hedged option. The $rV$ term is offset by the cost of funding
+the premium, and $\Theta_0$ remains.
+\end{perche}
+
+\begin{attenzione}[title={The project's theta is not Hull's}]
+For a deep ITM call the theta can be \emph{positive}: $rV$ exceeds $|\Theta_0|$. In the project this happens at
+50.6\% of the ITM points of the test grid. Only $\Theta_0$ is always negative; on the OTM options of the grid the
+ratio $rV/|\Theta_0|$ reaches at most 0.688, so there $\Theta<0$ always.
+
+Hull, by contrast, holds spot, $r$ and $q$ fixed. The link is derived step by step. With a continuous-yield model
+$F=S\,e^{(r-q)(T-t)}$; at fixed $S$ the forward moves in time with $\partial F/\partial t=-(r-q)F$. By the chain
+rule
+\begin{equation}\label{eq:theta-spot}
+\Theta_S=\Theta+\Delta_F\,\frac{\partial F}{\partial t}=\Theta-(r-q)\,F\,\Delta_F .
+\end{equation}
+Likewise $\Delta_S=\Delta_F\,\partial F/\partial S=e^{-qT}\Phi(d_1)$ for the call. On Hull's Greeks example
+($S=49$, $K=50$, $r=5\%$, $q=0$, $\sigma=20\%$, $T=20/52$) the kernel theta is $-3.027$/year;
+\eqref{eq:theta-spot} gives $-4.30533$/year, that is, $-0.0117954$ per day, which is Hull's value ($-4.31$/year).
+\end{attenzione}
+
+\section{Black's equation and the gamma--theta link}
+By Feynman--Kac \eqref{eq:feynman-kac}, the undiscounted price $v=V/\DF$ satisfies
+$\partial_tv+\frac12\sigma^2F^2v_{FF}=0$. Multiplying by $\DF$ (and recalling that $\partial_t\DF=r\DF$):
+\begin{equation}\label{eq:pde-black}
+\Theta+\tfrac12\sigma^2F^2\Gamma_F-rV=0 .
+\end{equation}
+\subsection{The P\&L of a delta-hedged option}
+I buy an option and sell $\Delta_F$ forwards (or futures) to neutralize the risk to first order. Over an interval
+$\Delta t$, by a Taylor expansion:
+\[
+\mathrm{d}\Pi\approx\underbrace{\Delta_F\,\Delta F-\Delta_F\,\Delta F}_{=0\ \text{(hedge)}}+\tfrac12\Gamma_F(\Delta F)^2+\Theta_0\,\Delta t .
+\]
+Using \eqref{eq:pde-black} ($\Theta_0=-\frac12\sigma^2F^2\Gamma_F$, once the cost of funding the premium $rV$ is
+removed):
+\begin{equation}\label{eq:pnl-gamma}
+\boxed{\mathrm{d}\Pi=\tfrac12\Gamma_F F^2\Big[\Big(\frac{\Delta F}{F}\Big)^2-\sigma^2\Delta t\Big]}
+\end{equation}
+\begin{idea}[title={Key idea: ``gamma pays for theta''}]
+Whoever is long a hedged option makes money if the \emph{realized} variance $(\Delta F/F)^2$ exceeds the
+\emph{implied} one $\sigma^2\Delta t$, and loses otherwise. Theta is the ``rent'' paid for owning gamma. The gain is
+weighted by gamma, so it is path-dependent: a large move far from the strike (where gamma is small) earns little.
+For short-dated ATM options gamma and theta grow like $1/\sqrt T$ while vega decreases like $\sqrt T$: a portfolio
+long the 1-year option and short the 1-month option is short gamma and long vega.
+\end{idea}
+
+\section{Implied volatility}
+\subsection{The problem}
+Given a market price $V^m$, find $\sigma$ such that $V_{\text{Black}}(\sigma)=V^m$. The problem is solved in
+normalized form. The steps:
+\begin{enumerate}
+\item Undiscounted price $v=V/\DF$; if $v$ does not lie strictly between the intrinsic value $\iota$ and $F$ (call)
+or $K$ (put), no volatility exists: \code{NaN} is returned with a status code.
+\item Always switch to the \textbf{OTM} option (thanks to parity): $\beta=(v-\iota)/\sqrt{FK}$.
+\item Solve $b(s):=b_{+1}(-|x|,s)=\beta$ for the unknown $s$, and finally $\sigma=s/\sqrt T$.
+\end{enumerate}
+
+\subsection{Existence and uniqueness}
+Differentiating the normalized form and using \eqref{eq:identita-phi}:
+\begin{equation}\label{eq:vega-norm}
+b'(s)=\frac{1}{\sqrt{2\pi}}\exp\!\Big(-\frac{x^2}{2s^2}-\frac{s^2}{8}\Big)>0,\qquad
+b''(s)=b'(s)\Big(\frac{x^2}{s^3}-\frac s4\Big).
+\end{equation}
+$b$ is strictly increasing, starts from $0$ (as $s\to0$, the OTM option is worth zero) and tends to $e^{-|x|/2}$:
+every admissible $\beta$ has \emph{exactly one} solution. The true vega is $\vega=\DF\sqrt{FK}\sqrt T\,b'(s)$.
+
+\subsection{Newton without surprises (Manaster--Koehler)}
+Newton's method $s_{n+1}=s_n-(b(s_n)-\beta)/b'(s_n)$ converges quickly but can diverge from a bad start. From
+\eqref{eq:vega-norm}: $b''=0$ at $s_c=\sqrt{2|x|}$; $b$ is \textbf{convex} on $(0,s_c)$ and \textbf{concave} on
+$(s_c,\infty)$, and vega is maximal at $s_c$.
+\begin{perche}[title={Why start from the inflection point}]
+\begin{itemize}
+\item If the root lies in the concave part ($\beta>b(s_c)$), the tangents lie \emph{above} the graph: every Newton
+step lands \emph{before} the root, and the iterates increase monotonically towards it.
+\item If the root lies in the convex part ($\beta<b(s_c)$), the tangents lie \emph{below}: the iterates decrease
+monotonically towards the root.
+\end{itemize}
+In both cases the root is never ``overshot''. At the money ($x=0$) $s_c=0$, and the exact inverse
+$s=2\sqrt2\,\mathrm{erfinv}(\beta)$ is used instead.
+\end{perche}
+The project's solver adds a \emph{safeguard} anyway: it keeps a bracket $[\ell,h]$ containing the root (initially
+$[0,10\sqrt T]$) and, if Newton leaves the bracket, it takes a bisection step. Elements that have not converged after
+100 iterations go to Brent's method (which was never needed on the test grid).
+
+\subsection{Why always invert the OTM option}
+By parity, the undiscounted OTM price equals the time value of the ITM option at the same strike, and the vega is the
+same. But an ITM price carries an absolute rounding error $\approx\varepsilon\max(F,K)$, which ends up \emph{entirely}
+on the time value. The error on the volatility is
+\begin{equation}\label{eq:errore-iv}
+|\delta\sigma|\approx\frac{|\delta v_{\text{time value}}|}{\sqrt{FK}\sqrt T\,b'(s)} .
+\end{equation}
+For an OTM input $\delta v\approx\varepsilon v$, for an ITM input $\delta v\approx\varepsilon\max(F,K)$: the a priori
+estimate is $\lesssim10^{-14}$ against $\sim10^{-12}$.
+
+Measured in the project, on the test grid ($147{,}600$ points per option type): round-trip error at most
+${1.07\times10^{-14}}$ for OTM inputs and ${8.23\times10^{-13}}$ for ITM inputs, against a threshold of $10^{-10}$.
+An independent check on $300{,}000$ random off-grid points gave ${1.05\times10^{-14}}$ and ${6.54\times10^{-13}}$. The
+measurements confirm the error model.
+
+In the extreme wings the vega vanishes: tiny errors on the price become huge errors on the volatility, and below
+machine precision there is no information left.
+
+\section{Checking the Greeks with finite differences}
+The Greek formulas are checked by comparing them with numerical derivatives:
+\begin{equation}\label{eq:diff-finite}
+D_1f=\frac{f(u+h)-f(u-h)}{2h},\qquad D_2f=\frac{f(u+h)-2f(u)+f(u-h)}{h^2}.
+\end{equation}
+
+\begin{perche}[title={How to choose the step $h$}]
+Two errors compete.
+\begin{itemize}
+\item The truncation (Taylor) error is $\approx h^2|f'''|/6$ for $D_1$ and $\approx h^2|f''''|/12$ for $D_2$: it grows
+with $h$.
+\item The rounding error is $\approx\varepsilon|f|/h$ for $D_1$ and $\approx4\varepsilon|f|/h^2$ for $D_2$: it grows
+as $h$ decreases.
+\end{itemize}
+Minimizing the sum gives $h\propto\varepsilon^{1/3}$ for $D_1$ and $h\propto\varepsilon^{1/4}$ for $D_2$. An $h$ that
+is too small is worse than one that is too large. The steps are expressed in the natural scale of the variable: for
+$F$ a multiple of $F\sigma\sqrt T$ is used, which is one standard deviation of the forward.
+\end{perche}
+
+\paragraph{Theta by finite differences.} For the theta, $T$ and $\DF$ must be moved together at fixed $r$:
+\begin{equation}\label{eq:theta-fd}
+\Theta_{\text{FD}}=\frac{V(F,K,T-h,\DF\,e^{+rh},\sigma)-V(F,K,T+h,\DF\,e^{-rh},\sigma)}{2h}.
+\end{equation}
+Moving only $T$ measures $\Theta_0$ and is off by $rV$.
+
+\begin{progetto}[title={In the qpricer project: the gamma that ``would not pass''}]
+\textbf{The symptom.} With the step originally planned, $h=10^{-4}F\sigma\sqrt T$, the finite-difference gamma was off
+by up to ${1.773\times10^{-5}}$ in relative terms (threshold $10^{-5}$), at 78 points out of $147{,}600$, all with
+$\sigma\sqrt T\approx0.007$.
+
+\textbf{The diagnosis.} The analytic gamma was right: the identity $\vega=\sigma TF^2\Gamma$ held below $10^{-12}$,
+and larger steps converged to it. It was \emph{the reference that was noisy}. At the worst point the price noise was
+about $600\,\varepsilon V$, not $\varepsilon V$, because of the cancellation in $F\Phi(d_1)-K\Phi(d_2)$. The rounding
+term $4\varepsilon|f|/h^2$ was therefore 600 times larger than expected, and the optimal step grows by
+$600^{1/4}\approx5$.
+
+\textbf{The new step, step by step.} Write $h=c\,F\sigma\sqrt T$ and model the worst error on the grid as
+$A c^2+B/c^2$ (truncation plus rounding).
+\begin{enumerate}
+\item $A=4.47$ is measured at the corner where truncation dominates ($\sigma=1$, $T=5$, $z=3$, with
+$c={2\times10^{-3}}$).
+\item $B={1.77\times10^{-13}}$ is measured at the corner where rounding dominates (with $c=10^{-4}$).
+\item The minimum of $Ac^2+B/c^2$ is at $c^*=(B/A)^{1/4}={4.46\times10^{-4}}$, where it equals
+$2\sqrt{AB}\approx{1.8\times10^{-6}}$.
+\end{enumerate}
+With $c={4.5\times10^{-4}}$ the measured error is ${9.96\times10^{-7}}$. The threshold was not loosened and the grid
+was not changed: the reference changed, not the criterion. An independent check confirmed the analytic gamma to
+${8.9\times10^{-15}}$ against finite differences computed with 60 decimal digits, and also checked the gamma of the
+ITM options (${1.24\times10^{-6}}$ with its own Richardson scheme).
+\end{progetto}
+
+\section{Main numerical pitfalls}
+\begin{enumerate}
+\item \textbf{Normal tails.} Never $1-\Phi(d)$; use the form with $\theta$, \code{ndtr(theta*d)}.
+\item \textbf{ITM cancellation.} The time value of an ITM option, the finite-difference gamma of an ITM option and
+the implied volatility from an ITM price all have an absolute error $\approx\varepsilon(F+K)$. One works on the OTM
+side. A measured example: for an ITM quote with $3<|z|<7.5$, where $z=\ln(K/F)/(\sigma\sqrt T)$, the solver returns a
+volatility with status ``converged'' but with an error that can reach ${2.0\times10^{-4}}$ in absolute terms
+($\sigma=1$, $T=5$, $z=6.5$). This is not a defect of the solver: the error matches the conditioning limit
+$\varepsilon\max(v,F,K)/(\vega/\DF)$ of \eqref{eq:errore-iv}. It is, however, an unflagged error, a known and
+unresolved limitation; the calibration is not affected, because it uses only OTM quotes (Chapter~\ref{cap:dati}).
+\item \textbf{Parity to $10^{-12}$.} Computing call and put separately, the error is
+$\approx c\,\varepsilon\,\DF(F+K)$ with $c\approx2$--4. For strikes very large relative to $F=100$ (up to
+$K\approx{8.2\times10^4}$ in the test domain) the ulp of $K$ already exceeds $10^{-12}$, and that threshold is not
+representable in double precision. This is why parity is checked to $10^{-12}$ for $K/F\in[0.25,4]$, and elsewhere
+at the limit of double precision, $4$ ulp of $\DF\max(F,K)$. Computing the put as $C-\DF(F-K)$ would turn the test
+into a tautology.
+\item \textbf{$s\to0$.} $d_{1,2}=0/0$ when $F=K$. The code substitutes the limits ($+\infty$ for $x>0$, $-\infty$
+for $x<0$, $0$ for $x=0$), and the formulas automatically return the correct limits, with no special branches. At the
+money the vega at $\sigma=0$ is the right derivative $\DF\,F\sqrt T/\sqrt{2\pi}$, consistent with
+\eqref{eq:brenner}.
+\item \textbf{Deep wings.} \code{ndtr} returns 0 below $d\approx-37.5$, even though $\Phi$ would still be
+representable down to $d\approx-38.5$. If $\Phi(d_2)$ underflows and $\Phi(d_1)$ does not, the normalized function
+$b(s)$ loses its second term and comes out up to about 17 times too large: the solver converges on a wrong function.
+An independent check showed that, for OTM prices below about $10^{-280}$, this produced a wrong volatility, even
+$\sigma=0$, without flagging it. The fix: the root is accepted only if $s>0$ and
+$\Phi(d_2)\ge10^3\cdot\text{(smallest normal number)}\approx{2.2\times10^{-305}}$; otherwise the result is \code{NaN}
+with a dedicated status and a warning. No quoted price lies in that region, but the rule ``never a wrong number
+silently'' applies everywhere.
+\item \textbf{Impossible prices.} If the price does not lie strictly between the intrinsic value and $F$ (call) or
+$K$ (put), or the volatility exceeds the cap $\sigma_{\max}=10$, the solver returns \code{NaN} with a status code and a
+warning. The status is per element: a single stale or crossed quote does not stop the inversion of an entire chain,
+and it is never silently ``adjusted''. Invalid market inputs ($F\le0$, $T\le0$, \dots), by contrast, raise an error:
+they are programming errors, not data.
+\end{enumerate}
+
+\begin{progetto}[title={In the qpricer project: Phase 1 results}]
+The numbers come from \code{scripts/phase1\_gates.py} and from an independent check, which uses a Black formula
+computed with 60 decimal digits, the complex-step method and its own bisection solver.
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{X l l}
+\toprule
+check & measured & threshold\\
+\midrule
+parity, $K/F\in[0.25,4]$, ${2\times10^5}$ points & ${1.137\times10^{-13}}$ & $10^{-12}$\\
+parity, whole test domain & 2.25 ulp (${1.455\times10^{-11}}$) & 4 ulp\\
+implied volatility, round trip, OTM input & ${1.07\times10^{-14}}$ & $10^{-10}$\\
+implied volatility, round trip, ITM input & ${8.23\times10^{-13}}$ & $10^{-10}$\\
+delta vs finite differences (relative) & ${2.05\times10^{-8}}$ & $10^{-5}$\\
+gamma vs finite differences (relative) & ${9.96\times10^{-7}}$ & $10^{-5}$\\
+vega vs finite differences (relative) & ${2.96\times10^{-7}}$ & $10^{-5}$\\
+theta vs finite differences (relative) & ${1.69\times10^{-8}}$ & $10^{-5}$\\
+Greeks vs 60-digit reference & $\le{5.1\times10^{-14}}$ & ---\\
+Hull's example (Black-76, $F=K=20$) & $1.1166414\ldots$ vs $1.1166$ & $\pm{0.5\times10^{-4}}$\\
+\bottomrule
+\end{tabularx}
+\end{center}
+On $2\times147{,}600$ elements the Newton solver uses at most 12 evaluations (6.95 on average), and the Brent fallback
+is never called. The file \code{tests/golden/bsm\_black76.json} freezes 12 cases (price and Greeks) computed in
+extended precision; the implementation reproduces them to within $10^{-11}$ relative.
+\end{progetto}
+
+\begin{riassunto}
+\begin{itemize}
+\item $V=\DF\,\theta\,[F\,\Phi(\theta d_1)-K\,\Phi(\theta d_2)]$; it depends only on $x=\ln(F/K)$ and $s=\sigma\sqrt T$.
+\item $F\,\varphi(d_1)=K\,\varphi(d_2)$ simplifies all the Greeks. $\vega=\sigma TF^2\Gamma$.
+\item Theta at fixed $F$ and $r$: $\Theta=\Theta_0+rV$, which can be positive for ITM options; Hull's differs by
+$(r-q)F\Delta_F$.
+\item Black's PDE $\Rightarrow$ hedged P\&L $=\frac12\Gamma F^2[(\Delta F/F)^2-\sigma^2\Delta t]$.
+\item Implied volatility is unique; Newton started from the point of maximum vega converges monotonically; invert the
+OTM option.
+\item Finite differences: the step balances truncation and rounding, and must be chosen on the true price noise.
+\end{itemize}
+\end{riassunto}
+
+\begin{domande}
+\begin{enumerate}
+\item Derive Black's formula for the call using the change of measure. Where does $\Phi(d_1)$ come in?
+\item You are long an ATM call, delta-hedged every day. What is your P\&L? \emph{Hint:} \eqref{eq:pnl-gamma}.
+\item Why does Newton start from $s_c=\sqrt{2|x|}$ for the implied volatility?
+\item The theta of an ITM call is positive: is that a mistake? \emph{Hint:} no, $\Theta=\Theta_0+rV$ and $rV$ can
+exceed $|\Theta_0|$.
+\item How does one go from the kernel theta to Hull's? \emph{Hint:} \eqref{eq:theta-spot}.
+\item The finite-difference gamma fails the test: should the threshold be loosened? \emph{Hint:} no; analyze the
+noise of the reference and choose the optimal step.
+\end{enumerate}
+\end{domande}

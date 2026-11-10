@@ -1,0 +1,193 @@
+\chapter{The minimal mathematical toolkit}
+\label{cap:strumenti}
+
+This chapter collects the tools used throughout the rest of the document: Brownian motion, Itô's lemma, geometric
+Brownian motion, change of measure, the link between expected values and differential equations, the
+characteristic function and a few notions of computer arithmetic. The goal is not maximum generality but being able
+to \emph{use} these tools with confidence and to understand why they work.
+
+\section{Brownian motion}
+
+\begin{definizione}
+A standard \textbf{Brownian motion} $W_t$ is a process with $W_0=0$, continuous paths, and independent Gaussian
+increments: $W_t-W_s\sim\N(0,\,t-s)$ for $s<t$.
+\end{definizione}
+
+\paragraph{Intuition: a random walk.} Split $[0,t]$ into $n$ steps of length $\Delta=t/n$ and at each step make a
+jump of $\pm\sqrt\Delta$ with probability $\tfrac12$. The sum has mean $0$ and variance $n\Delta=t$; by the central
+limit theorem, as $n\to\infty$ it becomes $\N(0,t)$. Two facts to remember:
+\begin{itemize}
+\item the typical displacement over a time $\Delta$ is $\sqrt\Delta$, much larger than $\Delta$ when $\Delta$ is
+small: the paths are continuous but ``jagged'' and nowhere differentiable;
+\item the \emph{square} of an increment, $(\Delta W)^2$, has mean $\Delta$ and variance $2\Delta^2$: as
+$\Delta\to0$ it is practically deterministic and equal to $\Delta$. In short one writes
+$(\mathrm{d}W)^2=\mathrm{d}t$.
+\end{itemize}
+To simulate: $W_{t+\Delta}=W_t+\sqrt\Delta\,Z$ with $Z\sim\N(0,1)$.
+
+\section{Stochastic differential equations and Itô's lemma}
+A \textbf{stochastic differential equation} (SDE) describes how a quantity changes over a time $\mathrm{d}t$:
+\[
+\mathrm{d}X_t=\underbrace{\mu(t,X_t)\dd t}_{\text{drift}}+\underbrace{\sigma(t,X_t)\dd W_t}_{\text{noise}} .
+\]
+If $X$ has these dynamics, how does a smooth function $f(t,X_t)$ change? In ordinary calculus the first-order chain
+rule would be enough. Here, instead, the \emph{second}-order Taylor expansion contains
+$(\mathrm{d}X)^2=\sigma^2(\mathrm{d}W)^2+\dots=\sigma^2\dd t$, which is of the same order as $\mathrm{d}t$ and cannot
+be neglected.
+
+\begin{teorema}[Itô's lemma]
+\begin{equation}\label{eq:ito}
+\mathrm{d}f=\Big(f_t+\mu f_x+\tfrac12\sigma^2 f_{xx}\Big)\dd t+\sigma f_x\dd W_t .
+\end{equation}
+\end{teorema}
+The term $\tfrac12\sigma^2f_{xx}$ is the ``Itô term'': it is the correction due to the convexity of $f$ and to the
+size of the fluctuations.
+
+\section{Geometric Brownian motion (the Black model)}
+The simplest model for a forward price is
+\begin{equation}\label{eq:gbm}
+\mathrm{d}F_t=\sigma F_t\dd W_t ,
+\end{equation}
+that is, Gaussian instantaneous returns $\mathrm{d}F/F$ with variance $\sigma^2\dd t$ and \emph{no drift} (the
+forward is a martingale under $\Q^T$).
+
+\paragraph{Solution, step by step.} Apply Itô to $f(F)=\ln F$: $f_F=1/F$, $f_{FF}=-1/F^2$, $\mu=0$, noise
+coefficient $\sigma F$. Then
+\[
+\mathrm{d}\ln F_t=\Big(0+0+\tfrac12\sigma^2F^2\cdot(-\tfrac1{F^2})\Big)\dd t+\sigma F\cdot\tfrac1F\dd W_t
+=-\tfrac12\sigma^2\dd t+\sigma\dd W_t .
+\]
+The right-hand side no longer depends on $F$, so it integrates directly:
+\begin{equation}\label{eq:gbm-sol}
+\ln F_T=\ln F-\tfrac12\sigma^2T+\sigma W_T
+\quad\Longrightarrow\quad
+F_T=F\exp\!\big(sZ-\tfrac12s^2\big),
+\end{equation}
+with $s=\sigma\sqrt T$ and $Z\sim\N(0,1)$.
+$F_T$ is therefore \textbf{lognormal}: its logarithm is Gaussian with mean $\ln F-s^2/2$ and variance $s^2$.
+
+\begin{perche}[title={Why does $-\tfrac12 s^2$ appear?}]
+To preserve the martingale property. For a standard Gaussian, $\E[e^{sZ}]=e^{s^2/2}$ (proved by completing the
+square in the integral of the density). Hence $\E[F_T]=F\,e^{-s^2/2}\,e^{s^2/2}=F$. Without the correction, the mean
+of $F_T$ would grow just because the exponential is convex (Jensen's inequality). This ``convexity'' correction comes
+back in every Monte Carlo scheme: get it wrong and the simulated forward acquires a spurious drift.
+\end{perche}
+
+\paragraph{Exact simulation.} From \eqref{eq:gbm-sol}, on a grid $t_0<t_1<\dots$
+\begin{equation}\label{eq:log-euler}
+\ln F_{t_{i+1}}=\ln F_{t_i}-\tfrac12\sigma^2\Delta_i+\sigma\sqrt{\Delta_i}\,Z_i,\qquad Z_i\ \text{iid }\N(0,1),
+\end{equation}
+which is \emph{exact} for any step $\Delta_i$ (the ``log-Euler'' scheme introduces no error when $\sigma$ is
+constant).
+
+\section{Correlated Brownian motions}
+In stochastic-volatility models there are two sources of noise, one for the price and one for the volatility, with
+correlation $\rho$: $\mathrm{d}\langle W^F,W^v\rangle_t=\rho\dd t$. To simulate them one starts from two
+\emph{independent} normals $Z_v,Z_\perp$ and sets
+\begin{equation}\label{eq:cholesky}
+Z_F=\rho Z_v+\sqrt{1-\rho^2}\,Z_\perp .
+\end{equation}
+Check: $\Var Z_F=\rho^2+(1-\rho^2)=1$ and $\Cov(Z_F,Z_v)=\rho$. This is the Cholesky decomposition of the $2\times2$
+correlation matrix.
+
+\section{Change of measure (Girsanov) in one line}
+Many closed forms are obtained by ``shifting'' a Gaussian. The basic fact is the following.
+
+\begin{proposizione}[Exponential tilting]\label{prop:tilt}
+If $Z\sim\N(0,1)$, then for every function $f$:
+\begin{equation}\label{eq:tilt}
+\E\big[e^{sZ-s^2/2}f(Z)\big]=\E\big[f(Z+s)\big].
+\end{equation}
+\end{proposizione}
+
+\begin{proof}
+Completing the square in the exponent, $sz-\tfrac12s^2-\tfrac12z^2=-\tfrac12(z-s)^2$, so
+\[
+\int_{\R} e^{sz-s^2/2}f(z)\,\frac{e^{-z^2/2}}{\sqrt{2\pi}}\dd z
+=\int_{\R} f(z)\,\frac{e^{-(z-s)^2/2}}{\sqrt{2\pi}}\dd z .
+\]
+With the change of variable $z=y+s$ the right-hand side becomes $\E f(Z+s)$.
+\end{proof}
+Interpretation: weighting the scenarios with the positive, mean-one variable $L=e^{sZ-s^2/2}$ is equivalent to
+changing probability, and under the new probability $Z$ has mean $s$ instead of $0$. This is the static version of
+\textbf{Girsanov's theorem}: under a change of measure, a Brownian motion acquires a drift.
+
+\paragraph{The share measure.} A case we will use often: $L=F_T/F$, which by \eqref{eq:gbm-sol} is exactly
+$e^{sZ-s^2/2}$. Weighting by $F_T/F$ means using the underlying itself as numéraire. It is used to compute terms such
+as $\E[F_T\ind\{F_T>K\}]$ (Chapter~\ref{cap:black}), for the symmetries of Heston and SABR and for the reflection
+principle of barriers.
+
+\section{From the expected value to the partial differential equation}
+Let $v(t,F)=\E[g(F_T)\mid F_t=F]$. By the tower property, $v(t,F_t)$ is a martingale; by Itô its $\mathrm{d}t$ part
+must vanish:
+\begin{equation}\label{eq:feynman-kac}
+\partial_tv+\tfrac12\sigma^2F^2\,\partial_{FF}v=0,\qquad v(T,F)=g(F).
+\end{equation}
+This is the \textbf{Feynman--Kac} link: an expected value satisfies a partial differential equation (PDE), and vice
+versa. In Chapter~\ref{cap:black} this equation becomes Black's equation and explains the link between gamma and
+theta; in Chapter~\ref{cap:heston} we use it to derive the Heston characteristic function.
+
+\section{The characteristic function}
+\begin{definizione}
+The \textbf{characteristic function} (CF) of a real random variable $X$ is $\varphi(u)=\E[e^{iuX}]$, $u\in\R$ (and,
+when the expectation exists, also for complex $u$).
+\end{definizione}
+
+\noindent Useful properties:
+\begin{itemize}
+\item $\varphi(0)=1$, $|\varphi(u)|\le1$ for real $u$, $\varphi(-u)=\overline{\varphi(u)}$;
+\item the CF determines the distribution: the density is recovered by the inverse Fourier transform
+$f(x)=\frac1{2\pi}\int e^{-iux}\varphi(u)\dd u$;
+\item Gaussian $\N(m,s^2)$: $\varphi(u)=e^{ium-u^2s^2/2}$;
+\item the \textbf{cumulants} $c_n$ are the coefficients of the expansion $\ln\E[e^{wX}]=\sum_nc_nw^n/n!$: $c_1$ is
+the mean, $c_2$ the variance, $c_4$ measures the tails (kurtosis).
+\end{itemize}
+
+\begin{idea}
+In many models (Heston among them) the density of the price at expiry is \emph{not} known in closed form, but the
+characteristic function is. Fourier methods (COS, Lewis, Chapter~\ref{cap:heston}) compute prices directly from the
+CF.
+\end{idea}
+
+\section{A little computer arithmetic}
+The project checks formulas to $10^{-12}$ or better, so how the computer represents numbers matters.
+\begin{itemize}
+\item In double precision every number has about 16 significant digits. The \textbf{machine epsilon}
+$\varepsilon=2^{-52}\approx{2.2\times10^{-16}}$ is the relative distance between two adjacent representable numbers
+near 1. The \emph{ulp} (unit in the last place) of a number $x$ is about $\varepsilon|x|$.
+\item \textbf{Cancellation:} subtracting two nearly equal numbers cancels the common digits and leaves only the
+rounding error. A fundamental example: $\Phi(-8)\approx{6\times10^{-16}}$, but computing it as $1-\Phi(8)$ gives a
+result that is off by about 10\%, because $\Phi(8)$ differs from 1 by only 5 ulp; beyond $d\approx8.3$ it gives
+exactly 0. Remedy: compute the small tail directly, $\Phi(-d)$.
+\item \textbf{Underflow:} numbers below $\approx10^{-308}$ become 0 (or lose precision even earlier). Remedy: work with
+logarithms.
+\item \textbf{Overflow:} above $\approx{1.8\times10^{308}}$ one gets \code{inf}. An example from the project: the
+product of 250 prices around 100 is $10^{500}$; one computes the sum of the logarithms instead.
+\end{itemize}
+
+\begin{attenzione}
+An implementation can be \emph{mathematically} correct and \emph{numerically} wrong. For each model the project
+keeps a list of numerical pitfalls, in the form ``symptom $\to$ remedy''; in this document you will find them in
+boxes like this one.
+\end{attenzione}
+
+\begin{riassunto}
+\begin{itemize}
+\item Brownian motion: increments $\N(0,\Delta)$, $(\mathrm{d}W)^2=\mathrm{d}t$. Itô = second-order Taylor.
+\item Black: $\ln F_T\sim\N(\ln F-s^2/2,\,s^2)$; the $-s^2/2$ guarantees $\E F_T=F$. Log-Euler simulation is exact.
+\item Correlation: $Z_F=\rho Z_v+\sqrt{1-\rho^2}Z_\perp$.
+\item Change of measure: $\E[e^{sZ-s^2/2}f(Z)]=\E f(Z+s)$.
+\item Feynman--Kac: expected value $\Leftrightarrow$ PDE. Characteristic function: known even when the density is
+not.
+\item Beware of cancellation, underflow and overflow.
+\end{itemize}
+\end{riassunto}
+
+\begin{domande}[unbreakable]
+\begin{enumerate}
+\item Derive $\mathrm{d}\ln F$ with Itô for $\mathrm{d}F=\sigma F\dd W$.
+\item Show that $\E[e^{sZ}]=e^{s^2/2}$. \emph{Hint:} complete the square,
+$sz-\tfrac12z^2=-\tfrac12(z-s)^2+\tfrac12s^2$.
+\item Why is $1-\Phi(d)$ a bad idea for $d=8$?
+\end{enumerate}
+\end{domande}

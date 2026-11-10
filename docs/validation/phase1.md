@@ -83,7 +83,7 @@ Remarks on the gates:
 |---|---|
 | Forward-based kernel; discounting applied once | V, Δ, Γ and vega are linear in DF to ≤ 4 eps. IV(DF·V₁, DF) = σ to < 1e-10. No r or q inside the kernels. |
 | Theta definition | Θ = ∂V/∂t in calendar time, **per year**. F (the forward to the same expiry), K, σ and r = −ln DF/T are held fixed, so DF accretes. This matches HP-FD with the joint (T, DF) bump to 5e-14. Θ − rV = Θ0 = −∂V/∂T at fixed DF matches the HP-FD T-only bump to < 1e-11. The Black PDE Θ + ½σ²F²Γ − rV = 0 holds on the HP values to 1e-12. |
-| Theta sign | Negative on every OTM lattice point (max −1.42e-3/yr), and negative ATM with r = 0. **Positive at 50.6% of ITM lattice points** (DF < 1: carry on the premium). The rule "long options have negative theta" therefore fails for ITM options under this convention (interview point). |
+| Theta sign | Negative on every OTM lattice point (max −1.42e-3/yr), and negative ATM with r = 0. **Positive at 50.6% of ITM lattice points** (DF < 1: carry on the premium). The rule "long options have negative theta" therefore fails for ITM options under this convention. |
 | Theta vs Hull's spot theta | Different by construction. On Hull's example the kernel Θ is −3.027/yr and Hull's spot Θ is −4.305/yr. Eq. (10) Θ_S = Θ − (r−q)FΔ_F reproduces Hull (see §5). |
 | Vega units | Per unit of vol. Hull's 12.1 is reproduced (12.105); divide by 100 for per vol point. |
 | Call/put swaps | cp = −1 matches my own put to 1e-13 abs + 1e-11 rel. Γ and vega are **bit-identical** across cp. Δ_C − Δ_P = DF to ≤ 4 eps. Θ_C − Θ_P = rDF(F−K) to 1e-12 rel. IV(C) = IV(P) to < 1e-10. b₋₁(x,s) = b₊₁(−x,s) exactly. V = DF√(FK)·b matches HP to 1e-11. |
@@ -138,9 +138,9 @@ Remarks on the gates:
 **F2 — minor (gate specification): the parity gate does not state its strike range.** On the full IV-gate
 domain, K reaches 8.2e4 and ulp(8.2e4) = 1.5e-11. An absolute 1e-12 is then not representable in float64.
 The implementation is at the floor (≤ 2.25 ulp of DF·max(F,K)), and it passes at 1e-12 on K/F ∈ [0.25, 4]
-(the note's §2.5 domain) and up to K/F ≤ 40. *Recommended:* the owner should amend the ROADMAP gate to
+(the note's §2.5 domain) and up to K/F ≤ 40. *Recommended:* amend the ROADMAP gate to
 "< 1e-12 abs for K/F ∈ [0.25, 4]; ≤ 4 ulp of DF·max(F,K) elsewhere". This is a gate wording change for the
-owner; the validator did not change it.
+author; the validator did not change it.
 
 **F3 — minor (design): an ITM quote beyond |z| ≈ 3 returns an IV whose round-trip error can reach 2e-4
 without any flag.** The implementation is optimal here: the error equals the input conditioning
@@ -164,7 +164,7 @@ would remove the loss.
 **F6 — documentation.**
 * The note's §2.4 gamma row (step 1e-4, "~1e-8") is wrong. D-014's diagnosis is confirmed independently
   (analytic Γ exact to 9e-15). The note author should correct the row, as D-014 already requests.
-* The Hull Greek-letter example is now checked through the spot mapping (10). It is a useful interview
+* The Hull Greek-letter example is now checked through the spot mapping (10). It is a useful
   check, because it shows that the kernel theta (−3.03/yr) and Hull's theta (−4.31/yr) differ by r F Δ_F.
 * The Haug value stays unverified as a source, but it is consistent with the closed form (1.70105).
 

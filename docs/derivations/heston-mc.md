@@ -210,7 +210,7 @@ $m\times0.27\%$ fail with a correct implementation. A pass is statistical eviden
 the SE over the $N/2$ pair means. *Control variates:* $F_T$ (known mean $F$, martingale schemes only), or a Black-76 price on the same
 draws. *Conditional MC* (Willard 1997, used by Broadie–Kaya): given the $v$-path, $F_T$ is lognormal.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **The variance process is the hard part.** A square-root diffusion with realistic (Feller-violating) SPX parameters piles
    probability up near zero. Plain Euler then produces negative variances, and the choice of repair moves prices by whole

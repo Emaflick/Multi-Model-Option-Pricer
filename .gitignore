@@ -6,3 +6,27 @@ __pycache__/
 data/raw/*.parquet
 !data/raw/.gitkeep
 .DS_Store
+
+# LaTeX / tectonic build artefacts
+*.aux
+*.log
+*.toc
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+
+# Local AI tooling (pipeline agents, commands, hooks, settings, project memory)
+.claude/
+CLAUDE.md
+
+# Personal / study-only material (kept locally, not published)
+docs/BUILD_STATUS.md
+docs/HANDS_ON.md
+docs/dispensa/
+paper/it/
+paper/qpricer_it.pdf
+_BRIEF.md
+_check_*.tex

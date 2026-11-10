@@ -59,14 +59,14 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   **Next step:** the note's author should reclassify A1/A2 as qualitative (the "trap" itself is tested
   by the form-(4) negative control in `tests/test_heston.py`) or find AMST's unrounded parameters.
 
-- **Phase 2 · note corrections requested (heston.md §2.2 eq. 8 and §5; derivation-note owner)**
+- **Phase 2 · note corrections requested (heston.md §2.2 eq. 8 and §5; derivation-note author)**
   L = 12 COS fails the 1e-6 gate on sets FO (3.95e-5) and GS (2.58e-6). The error is the left-tail
   reflection term of §3.3, not the series. The code now uses a self-checking (N, L) by default
   (D-017, fix round 1). The §5 diagnostic "L = 16,
   N = 512 vs L = 12, N = 256 < 1e-8" does not hold for FO and GS. The eq. (13) estimate is about 20x
   pessimistic.
 
-- **Phase 3 · note corrections requested (sabr.md §5 oracles (ii) and (e); derivation-note owner; no ROADMAP gate
+- **Phase 3 · note corrections requested (sabr.md §5 oracles (ii) and (e); derivation-note author; no ROADMAP gate
   affected)**
   (1) Oracle (ii), K = F continuity: the bound |σ_H(±h) − σ_ATM| ≤ |∂_kσ|h + 1e-12σ is first order only. At h = 1e-4
   (set G, ρ = −0.75, T = 1), the −h side exceeds it by 2.06e-10 = ½∂²_kσ·h², which is exactly the eq. (8) curvature
@@ -143,4 +143,4 @@ Gates that failed after 3 fix attempts. Format: phase · gate · observed vs exp
   - **F9 (validator round 0).** `kind="cv"` raises for the whole strike vector if any strike has an all-zero control
     payoff. This is documented behaviour.
   - **F10 (size).** `src/` is 1900 lines, above the ≲ 1500 target. Validated modules are not being refactored; this is
-    reported to the owner.
+    reported to the author.

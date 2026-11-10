@@ -1,0 +1,212 @@
+% Pricing Vanilla and Exotic Options with Black, Heston and SABR (the qpricer project).
+% Build: tectonic qpricer_en.tex   (or pdflatex/xelatex twice)
+\documentclass[11pt,a4paper,openany]{book}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.6cm,headheight=14pt]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,array,tabularx,longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing}
+\usepackage[hidelinks]{hyperref}
+\usepackage{bookmark}
+\usepackage{url}
+\usepackage{graphicx}
+\graphicspath{{../../report/figures/}}
+
+% ---------- colors and teaching boxes ----------
+\definecolor{bluidea}{RGB}{30,80,160}
+\definecolor{verdeperche}{RGB}{20,120,60}
+\definecolor{rossoatt}{RGB}{170,30,30}
+\definecolor{grigioes}{RGB}{90,90,90}
+\definecolor{arancioprog}{RGB}{190,100,0}
+\definecolor{violadom}{RGB}{100,40,140}
+
+\newtcolorbox{idea}[1][]{enhanced,breakable,colback=bluidea!5,colframe=bluidea,fonttitle=\bfseries,
+  title={Key idea},#1}
+\newtcolorbox{perche}[1][]{enhanced,breakable,colback=verdeperche!5,colframe=verdeperche,fonttitle=\bfseries,
+  title={Why?},#1}
+\newtcolorbox{attenzione}[1][]{enhanced,breakable,colback=rossoatt!4,colframe=rossoatt,fonttitle=\bfseries,
+  title={Watch out},#1}
+\newtcolorbox{esempio}[1][]{enhanced,breakable,colback=grigioes!5,colframe=grigioes,fonttitle=\bfseries,
+  title={Example},#1}
+\newtcolorbox{progetto}[1][]{enhanced,breakable,colback=arancioprog!5,colframe=arancioprog,fonttitle=\bfseries,
+  title={In the qpricer project},#1}
+\newtcolorbox{domande}[1][]{enhanced,breakable,colback=violadom!4,colframe=violadom,fonttitle=\bfseries,
+  title={Self-check questions},#1}
+\newtcolorbox{riassunto}[1][]{enhanced,breakable,colback=white,colframe=black!60,fonttitle=\bfseries,
+  title={Chapter summary},#1}
+
+% ---------- theorems ----------
+\theoremstyle{definition}
+\newtheorem{definizione}{Definition}[chapter]
+\theoremstyle{plain}
+\newtheorem{proposizione}[definizione]{Proposition}
+\newtheorem{teorema}[definizione]{Theorem}
+
+% ---------- macro ----------
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\DF}{\mathit{DF}}
+\newcommand{\SE}{\mathrm{SE}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\Corr}{\operatorname{Corr}}
+\newcommand{\vega}{\mathcal{V}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{3pt}
+\renewcommand{\arraystretch}{1.25}
+\numberwithin{equation}{chapter}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\thepage}
+\fancyhead[RE]{\small\leftmark}
+\fancyhead[LO]{\small\rightmark}
+
+\hypersetup{pdftitle={Pricing Vanilla and Exotic Options with Black, Heston and SABR},
+  pdfsubject={Theory, numerical methods, S\&P 500 calibration and independent validation: the qpricer project},
+  pdfauthor={Emanuele Renzoni},
+  pdflang={en},
+  pdfkeywords={Black-76, Heston, SABR, COS, Monte Carlo, exotic options, calibration, SPX}}
+
+% ---------- layout ----------
+\usepackage{needspace}
+\usepackage[tableposition=top]{caption}
+\captionsetup{font=small,labelfont=bf}
+\captionsetup[table]{skip=6pt}
+% ragged bottom throughout the book: no vertical space stretched to even out page bottoms
+\raggedbottom
+% no widow or club lines. babel-english does not touch these penalties (unlike babel-italian), but the
+% LaTeX kernel restores \clubpenalty from \@clubpenalty after lists, so both are set.
+\makeatletter
+\widowpenalty=10000
+\clubpenalty=10000
+\@clubpenalty=\clubpenalty
+\makeatother
+\displaywidowpenalty=10000
+% no hyphenated word split across two pages
+\brokenpenalty=10000
+\tcbset{beforeafter skip balanced=0.8\baselineskip plus 2pt minus 1pt,
+  before upper={\setlength{\parskip}{0.5\baselineskip}}}
+\renewcommand{\dd}{\mathop{}\!\mathrm{d}}
+\makeatletter
+% \paragraph headings slightly closer to the preceding text
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}{2ex \@plus .6ex \@minus .2ex}{-1em}%
+  {\normalfont\normalsize\bfseries}}
+% table of contents: room for two-digit numbers (10.10, 11.10, 12.2.6)
+\renewcommand*\l@section{\@dottedtocline{1}{1.5em}{2.8em}}
+\renewcommand*\l@subsection{\@dottedtocline{2}{4.3em}{3.4em}}
+% pages left blank by \cleardoublepage stay truly blank (no running head)
+\renewcommand\cleardoublepage{\clearpage\if@twoside\ifodd\c@page\else
+  \hbox{}\thispagestyle{empty}\newpage\fi\fi}
+\makeatother
+
+\begin{document}
+
+\frontmatter
+\begin{titlepage}
+\centering
+\vspace*{0.18\textheight}
+\rule{\textwidth}{0.8pt}\par
+\vspace{0.9cm}
+{\Huge\bfseries Pricing Vanilla and Exotic Options\par}
+\vspace{0.35cm}
+{\Huge\bfseries with Black, Heston and SABR\par}
+\vspace{0.9cm}
+\rule{\textwidth}{0.4pt}\par
+\vspace{1.1cm}
+{\Large Theory, numerical methods, S\&P\,500 calibration\\[5pt]
+and independent validation\par}
+\vspace{0.7cm}
+{\large\itshape the \textup{\textsc{qpricer}} project\par}
+\vfill
+{\LARGE Emanuele Renzoni\par}
+\vspace{0.5cm}
+{\large November 2026\par}
+\vspace*{0.06\textheight}
+\end{titlepage}
+
+\cleardoublepage
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+\markboth{Abstract}{Abstract}
+
+This work presents \textsc{qpricer}, a compact Python library for pricing European and exotic options under three
+models: Black-76, Heston and SABR with $\beta=1$. All the pricing kernels take a forward, a discount factor and an
+expiry, never rates or dividends.
+
+European options are priced in closed form (Black, Hagan) or, under Heston, with two independent Fourier methods, COS
+and Lewis. Exotics (barriers, arithmetic Asians, single-underlying autocallables) are priced by Monte Carlo:
+Andersen's QE scheme for Heston, a Brownian bridge for barriers, and the geometric average as a control variate for
+Asians.
+
+On a snapshot of the SPX chain (39 expiries, 7625 OTM quotes) forwards and discount factors are extracted from
+put--call parity. Heston is calibrated to the implied-volatility surface by bid/ask-weighted least squares with
+multiple starts; SABR expiry by expiry.
+
+Every result is checked by at least two independent methods, limiting cases and no-arbitrage identities; Monte Carlo
+comparisons are stated in standard errors (SE). The main results are the following.
+\begin{itemize}[leftmargin=1.5em,itemsep=1pt,topsep=3pt]
+\item COS and Lewis agree within $1.8\times10^{-10}$.
+\item The 16 starts of the calibration find the same minimum, with an RMSE of 0.328 vol points on the 21 in-sample
+expiries and of 1.379 on the 18 excluded short ones.
+\item Monte Carlo barrier prices stay within 1.99 SE of Reiner--Rubinstein.
+\item The geometric control reduces the variance of the Asians by a factor between 612 and 2202.
+\item The twelve measured convergence slopes fall in $[-0.554,\,-0.487]$, around the theoretical value $-1/2$.
+\item On the quarterly autocallable, the price under calibrated Heston is 0.0187 per unit notional (SE 0.0002) below
+the Black price with the same Heston's ATM volatility.
+\end{itemize}
+
+\vspace{1.5\baselineskip}
+\noindent\textbf{Keywords.} Black-76; Heston model; SABR; COS method; Lewis formula; Monte Carlo; QE scheme; variance
+reduction; barrier options; Asian options; autocallables; calibration; implied-volatility surface; S\&P\,500.
+
+\cleardoublepage
+\tableofcontents
+
+\cleardoublepage
+\input{ch00_introduction}
+
+\mainmatter
+\part{Foundations}
+\input{ch01_options}
+\input{ch02_tools}
+\input{ch03_data}
+\input{ch04_black}
+
+\part{Stochastic volatility and Monte Carlo}
+\input{ch05_heston}
+\input{ch06_montecarlo}
+\input{ch07_sabr}
+
+\part{Exotic options}
+\input{ch08_barriers}
+\input{ch09_asians}
+\input{ch10_autocallable}
+
+\part{Calibration, benchmark and validation}
+\input{ch11_calibration}
+\input{ch12_benchmark}
+\input{ch13_validation}
+
+\appendix
+\input{app_glossary}
+\input{app_bibliography}
+
+\end{document}

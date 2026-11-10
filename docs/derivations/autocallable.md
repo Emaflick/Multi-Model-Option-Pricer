@@ -194,7 +194,7 @@ expected life. If the total gap comes out positive, first check (i) of §3.5 on 
 Their "Case 1" (no autocall, fixed 9.2 coupon at $T$) is a direct instance of (11). They set the coupon to make it par, rounded to 9.2%, so
 expect about 100, not 100.00 exactly. No published Heston autocallable price was found; none is used.
 
-## 6. Interview angle
+## 6. Remarks
 
 1. **What the investor sold.** An autocallable is a bond plus a strip of coupon digitals, financed by a 60% down-and-in put the investor
    sells to the bank, with automatic early redemption when the market is up. The investor is short vol and short the downside. The

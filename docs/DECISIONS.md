@@ -199,7 +199,7 @@ as in the note. Kernels also accept DF > 1 (negative rates), while the note stat
 `test_sigma_zero_limits` checks the exact limit values.
 
 ## D-013 — Implied vol: invalid prices give NaN + warning + status, invalid market inputs raise
-**Context:** CLAUDE.md forbids silent clipping and silent NaN. Real chains contain stale or crossed
+**Context:** the project rules forbid silent clipping and silent NaN. Real chains contain stale or crossed
 quotes.
 **Decision:** if F, K, T or DF is <= 0 or non-finite, or cp is not +-1, the call raises ValueError
 (a programming error). Price-level failures give NaN. Each call emits one RuntimeWarning that
@@ -273,7 +273,7 @@ literally written is unattainable for ρ ≠ 0 — a specification error, not an
 skipping the case). No tolerance is loosened.
 **Alternatives:** drive ξ to 1e-7 so the linear term drops below 1e-5 — rejected: the CF's κθ/ξ² terms then
 cancel catastrophically (pitfall in heston.md), so it would test round-off, not the model.
-**Consequences:** the owner should be aware the ROADMAP wording is ambiguous; the interview answer is
+**Consequences:** the ROADMAP wording is ambiguous. The correct statement is
 "the ξ→0 limit is Black with integrated variance only for ρ = 0; with correlation the leading correction is
 the ρξ skew term, linear in ξ".
 
@@ -288,7 +288,7 @@ DF max(F, K). Calls and puts are always evaluated independently, never P = C −
 **Consequences:** measured (`scripts/phase1_gates.py`; validator `docs/validation/phase1.md`):
 1.137e-13 on K/F in [0.25, 4] (40 sigma × 30 T × 61 K × 3 DF, and 200k random points). On the
 full IV-gate domain the maximum is 1.455e-11 = 2.25 ulp of DF max(F, K). 124 of 147,600 points are
-above 1e-12, all at K >= 8.3e3. Amending the ROADMAP wording is left to the owner.
+above 1e-12, all at K >= 8.3e3. Amending the ROADMAP wording is left to the author.
 
 ## D-017 — COS range and size: self-checking (N, L) by default (updated in fix round 1, validator F1)
 **Context:** with the eq. (8) range at L = 12 the COS–Lewis gap does not fall with N (256 to 4096
@@ -347,8 +347,8 @@ diagnostic "L = 16/N = 512 vs L = 12/N = 256 < 1e-8") needs correcting by the no
 
 ## D-018 — Heston MC path API (Phase 4 reuse) and the 3SE gate design
 **Context:** Phase 4 needs per-step (x, v⁺) for the Brownian-bridge barrier, fixings for Asian and
-autocallable, and the raw draws for common random numbers (autocallable eq. 15). CLAUDE.md requires
-(price, stderr, n_paths, seed).
+autocallable, and the raw draws for common random numbers (autocallable eq. 15). The project rules
+require every MC result to return (price, stderr, n_paths, seed).
 **Decision:** `mc.heston_steps(p, times, n_paths, rng, scheme)` is a generator over any strictly
 increasing grid (non-uniform allowed; QE and Euler coefficients are computed per step from Δ_n).
 It yields (t_n, x_n, v_n, z_n) with x = ln(F_t/F), fresh arrays every step (never mutated, so
@@ -854,7 +854,7 @@ SD is ≈ 0.025, i.e. the [−0.6, −0.4] gate is ≈ 4 slope SDs wide on eithe
   work-normalised efficiency = VR × t_plain / t_m at N = 2^20; Sobol' empirical rate = the slope of its error metric;
   SE honesty ratio √(mean_N err²/rms SE²) (≈ 1 if the quoted SE is the true SD; noise ≈ ±0.06 at R = 16).
 **Why:** a slope fitted on one seed's |error| has O(1) noise per point; the SE fit is nearly deterministic, and the
-R-replication RMSE is the honest error. The 3SE check is the project convention (CLAUDE.md principle 4), so its
+R-replication RMSE is the honest error. The 3SE check is the project convention (verification principle 4: MC comparisons pass within 3 SE), so its
 multiplicity is declared, not tuned.
 
 ## D-041 — Control variate for the vanilla benchmark: X = F_T with exact mean F, under BSM and Heston

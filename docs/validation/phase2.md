@@ -151,7 +151,7 @@ silent.**
 * My own pricer (RIC+GP, no qpricer code) gives the same gap to plain Black: 3.27e-4 at T = 1, ρ = −0.7.
 * Its numerically differentiated first-order coefficient matches eq. (16)'s ρξJ∂x∂ΣV_B to 1.6e-10.
 * So the D-015 reference is correct, and the gap comes from the model.
-* *Recommended:* the owner amends the ROADMAP wording to "ρ = 0 vs Black(σ_eff); ρ ≠ 0 vs Black + first-order
+* *Recommended:* amend the ROADMAP wording to "ρ = 0 vs Black(σ_eff); ρ ≠ 0 vs Black + first-order
   term", and adds v0 ≠ θ to the gate grid in `scripts/phase2_gates.py`. With v0 = θ the time-average in the
   gate is trivial; I tested v0 ≠ θ and it passes at 4.2e-8.
 
